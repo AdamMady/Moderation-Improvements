@@ -96,4 +96,4 @@ pass `-p:SkipDeploy=true` to just build.
   bundle, pack or service.
 - Anything you make from it must be released under this same licence, so it stays free.
 
-Full text in `LICENSE`.
+Full text in `LICENSE`, short version in `NOTICE`.
