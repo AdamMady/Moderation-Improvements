@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>BigOrb</AssemblyName>
+    <Version>1.0.0</Version>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <Deterministic>true</Deterministic>
+    <DebugType>none</DebugType>
+    <PathMap>$(MSBuildProjectDirectory)=/src</PathMap>
+  </PropertyGroup>
+
+  <!--
+    Where to find BepInEx (for the reference assemblies) and where to copy the built DLL.
+    Set ONE of these environment variables / msbuild properties:
+      BigWalkBepInEx  - path to a BepInEx folder (manual install: <game dir>\BepInEx)
+      BigWalkProfile  - path to a Thunderstore/r2modman profile folder (BepInEx is inside it)
+    Neither set: assumes a Thunderstore Mod Manager profile named "Default".
+  -->
+  <PropertyGroup>
+    <BigWalkProfile Condition="'$(BigWalkProfile)' == ''">$(APPDATA)\Thunderstore Mod Manager\DataFolder\BigWalk\profiles\Default</BigWalkProfile>
+    <BigWalkBepInEx Condition="'$(BigWalkBepInEx)' == ''">$(BigWalkProfile)\BepInEx</BigWalkBepInEx>
+    <CoreDir>$(BigWalkBepInEx)\core</CoreDir>
+    <InteropDir>$(BigWalkBepInEx)\interop</InteropDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="BepInEx.Core"><HintPath>$(CoreDir)\BepInEx.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="BepInEx.Unity.IL2CPP"><HintPath>$(CoreDir)\BepInEx.Unity.IL2CPP.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>$(CoreDir)\0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppInterop.Runtime"><HintPath>$(CoreDir)\Il2CppInterop.Runtime.dll</HintPath><Private>false</Private></Reference>
+
+    <Reference Include="Assembly-CSharp"><HintPath>$(InteropDir)\Assembly-CSharp.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Mirror"><HintPath>$(InteropDir)\Mirror.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Mirror.Transports"><HintPath>$(InteropDir)\Mirror.Transports.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2Cppmscorlib"><HintPath>$(InteropDir)\Il2Cppmscorlib.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Il2CppSystem.Core"><HintPath>$(InteropDir)\Il2CppSystem.Core.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine"><HintPath>$(InteropDir)\UnityEngine.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.CoreModule"><HintPath>$(InteropDir)\UnityEngine.CoreModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.AudioModule"><HintPath>$(InteropDir)\UnityEngine.AudioModule.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(InteropDir)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+
+  <Target Name="DeployToBepInEx" AfterTargets="Build" Condition="Exists('$(BigWalkBepInEx)\plugins') And '$(SkipDeploy)' != 'true'">
+    <MakeDir Directories="$(BigWalkBepInEx)\plugins\BigOrb" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BigWalkBepInEx)\plugins\BigOrb" />
+    <Message Importance="high" Text="Deployed to $(BigWalkBepInEx)\plugins\BigOrb" />
+  </Target>
+
+</Project>
