@@ -3,6 +3,8 @@
 A small host-side moderation tool for **Big Walk**. It runs as a BepInEx plugin and serves a
 dashboard on `http://localhost:7845/` while you host a lobby.
 
+![Big Orb dashboard](docs/dashboard-dark.png)
+
 **This is provided as-is. No support, no updates, no promises.** It was written for one
 host's own lobbies and published in case it is useful to someone else. If a game update
 breaks it, the source is here; fork it.
@@ -23,6 +25,10 @@ breaks it, the source is here; fork it.
 
 Only the host is affected. Guests do not need the plugin and nothing is sent to them
 beyond the game's own traffic.
+
+Light mode is a click away:
+
+![Big Orb dashboard, light mode](docs/dashboard-light.png)
 
 ## Install
 
