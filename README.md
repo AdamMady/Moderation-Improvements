@@ -91,6 +91,11 @@ dotnet build -c Release
 The build copies the DLL into `BepInEx/plugins/BigOrb/` when that folder exists;
 pass `-p:SkipDeploy=true` to just build.
 
+## Contributing
+
+See `CONTRIBUTING.md`. Short version: it is unmaintained, forks are welcome, small tested
+PRs might get merged.
+
 ## License
 
 [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). In short:
