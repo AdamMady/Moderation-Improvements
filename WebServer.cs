@@ -11,21 +11,37 @@ internal static class WebServer
 
     internal static void Start(int port)
     {
-        try
+        // Wine's httpapi only accepts a single URL per url group ("fixme:http:HttpAddUrlToUrlGroup
+        // Multiple URLs are not handled" -> Start() throws "Call not implemented"), so if the
+        // two-prefix listener fails, fall back to a single prefix.
+        if (!TryStart(port, "http://localhost:{0}/", "http://127.0.0.1:{0}/")
+            && !TryStart(port, "http://localhost:{0}/")
+            && !TryStart(port, "http://127.0.0.1:{0}/"))
         {
-            _listener = new HttpListener();
-            _listener.Prefixes.Add($"http://localhost:{port}/");
-            _listener.Prefixes.Add($"http://127.0.0.1:{port}/");
-            _listener.Start();
-            Plugin.Logger.LogInfo($"web server listening on {port}: {_listener.IsListening}");
-        }
-        catch (Exception e)
-        {
-            Plugin.Logger.LogError($"web server failed to start on port {port}: {e.Message}");
+            Plugin.Logger.LogError($"web server failed to start on port {port}");
             return;
         }
         var t = new Thread(Loop) { IsBackground = true, Name = "OrbWeb" };
         t.Start();
+    }
+
+    private static bool TryStart(int port, params string[] prefixes)
+    {
+        var l = new HttpListener();
+        try
+        {
+            foreach (var p in prefixes) l.Prefixes.Add(string.Format(p, port));
+            l.Start();
+        }
+        catch (Exception e)
+        {
+            Plugin.Logger.LogWarning($"web server could not bind [{string.Join(", ", prefixes)}] on {port}: {e.Message}");
+            try { l.Close(); } catch { }
+            return false;
+        }
+        _listener = l;
+        Plugin.Logger.LogInfo($"web server listening on {port} ({prefixes.Length} prefix{(prefixes.Length == 1 ? "" : "es")}): {l.IsListening}");
+        return true;
     }
 
     private static void Loop()

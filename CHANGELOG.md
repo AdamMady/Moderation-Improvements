@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.1
+
+Hotfix for Proton/Linux users
+
+- The dashboard failed to start under Wine/Proton ("Call not implemented"). Wine's http
+  layer accepts only one URL per listener, and the server registered two (localhost and
+  127.0.0.1). It now falls back to a single prefix when the pair is refused. Windows is
+  unaffected.
+
 ## 1.1.0
 
 Defence against modded clients
