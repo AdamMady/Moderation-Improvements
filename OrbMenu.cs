@@ -269,7 +269,8 @@ public class OrbMenu : MonoBehaviour
 
     private void Send(string action, string id = null, string key = null, int val = 0, string text = null, bool confirm = false)
     {
-        if (!NetworkServer.active && action != "nametags") { _status = "Host a lobby to use this control."; return; }
+        bool localAction = action == "nametags" || action == "ban" || action == "unban";
+        if (!NetworkServer.active && !localAction) { _status = "Host a lobby to use this control."; return; }
         if (confirm)
         {
             _confirmation = action + " - " + (text ?? key ?? id ?? "selected target") + "?";
@@ -277,7 +278,9 @@ public class OrbMenu : MonoBehaviour
             return;
         }
         OrbBehaviour.Cmd(action, id, key, val, text);
-        _status = "Queued: " + action + ". Check Events for outcome.";
+        _status = !NetworkServer.active && (action == "ban" || action == "unban")
+            ? "Local ban list updated for future hosted lobbies."
+            : "Queued: " + action + ". Check Events for outcome.";
     }
 
     private void Details(JsonElement value)
@@ -315,9 +318,12 @@ public class OrbMenu : MonoBehaviour
             if (!Flag(player, "local") && !Flag(player, "isHost"))
             {
                 var id = Str(player, "id");
-                Buttons(("Kick", () => Send("kick", id, confirm: true)),
-                    ("Ban", () => Send("ban", id, confirm: true)),
-                    ("Lookup identity", () => Send("eoslookup", id)));
+                if (NetworkServer.active)
+                    Buttons(("Kick", () => Send("kick", id, confirm: true)),
+                        ("Ban", () => Send("ban", id, confirm: true)),
+                        ("Lookup identity", () => Send("eoslookup", id)));
+                else
+                    Buttons(("Ban for future hosted lobbies", () => Send("ban", id, confirm: true)));
             }
         }
 
@@ -370,6 +376,12 @@ public class OrbMenu : MonoBehaviour
 
     private void Signs()
     {
+        if (!NetworkServer.active)
+        {
+            Text("Whiteboard controls are available only while hosting.");
+            return;
+        }
+
         InputField("sign", "Replacement sign text (used by Set text)", ref _signText);
         Text("Locked signs", true);
         foreach (var sign in Rows(Get(Root, "signlocks")))
@@ -424,8 +436,8 @@ public class OrbMenu : MonoBehaviour
             ("+10 packets/s", () => Plugin.GuardVoiceLimit.Value += 10));
         Text("Press " + Plugin.MenuKey.Value + " or Escape to close.");
         Text("Moderation code taken from Big Orb by RadioFreeOpportunity. AdamMady made this in-game menu.");
-        Buttons(("Moderation Improvements Repository", () => Application.OpenURL(RepoUrl)),
-            ("Open Original Big Orb Repository", () => Application.OpenURL(SourceUrl)));
+        Buttons(("Open Original Big Orb Repository", () => Application.OpenURL(SourceUrl)),
+            ("Moderation Improvements Repository", () => Application.OpenURL(RepoUrl)));
     }
 
     private void Slider(string caption, BepInEx.Configuration.ConfigEntry<float> config, float min, float max)
