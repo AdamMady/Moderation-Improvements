@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using HarmonyLib;
 using Mirror;
 
@@ -12,7 +13,7 @@ internal static class Patches
 
     private static readonly HashSet<string> FiredHooks = new();
     private static string _lastChatKey; private static DateTime _lastChatTime;
-    private static string _lastSignKey; private static DateTime _lastSignTime;
+    private static readonly Dictionary<string, DateTime> RecentSigns = new();
 
     internal static void MarkFired(string hook)
     {
@@ -134,9 +135,13 @@ internal static class Patches
     private static void LogSign(string hook, string key, string text, string byId, uint netId = 0)
     {
         MarkFired(hook);
-        var dk = key + "" + text;
-        if (dk == _lastSignKey && (DateTime.Now - _lastSignTime).TotalSeconds < 3) return;
-        _lastSignKey = dk; _lastSignTime = DateTime.Now;
+        var now = DateTime.Now;
+        var dk = (key ?? "") + "\0" + (text ?? "");
+        if (RecentSigns.TryGetValue(dk, out var seen) && (now - seen).TotalSeconds < 3) return;
+        RecentSigns[dk] = now;
+        if (RecentSigns.Count > 128)
+            foreach (var old in RecentSigns.Where(pair => (now - pair.Value).TotalSeconds >= 3).Select(pair => pair.Key).ToList())
+                RecentSigns.Remove(old);
         var byName = NameForIdentifier(byId) ?? (byId != null ? byId : "unknown");
         OrbState.AddSign(key, text, byId, byName, netId);
     }
@@ -269,7 +274,7 @@ internal static class Patches
             try
             {
                 MarkFired("identifier");
-                if (!NetworkServer.active || string.IsNullOrEmpty(__1)) return;
+                if (!NetworkServer.active || string.IsNullOrEmpty(__1) || __instance.isLocalPlayer || __instance.isHost) return;
                 if (OrbState.IsBanned(__1))
                 {
                     OrbState.AddEvent("autokick", __1, Display(__instance), "banned identifier tried to join");

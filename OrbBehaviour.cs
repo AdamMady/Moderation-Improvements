@@ -44,8 +44,6 @@ public class OrbBehaviour : MonoBehaviour
             string world = null;
             try { world = SaveManager.worldName; } catch { }
             OrbState.NewSession(world);
-            try { Props.SessionReset(); } catch (Exception e) { Plugin.Logger.LogError("pose snapshot: " + e.Message); }
-            if (Plugin.AutoOpen.Value) OpenDashboard();
         }
         _wasHosting = hosting;
 
@@ -53,25 +51,10 @@ public class OrbBehaviour : MonoBehaviour
         {
             _nextTick = Time.unscaledTime + 0.25f;
             try { Tick(hosting); } catch (Exception e) { Plugin.Logger.LogError("tick: " + e.Message); }
-            if (hosting)
-            {
-                try { Scripting.Tick(); } catch (Exception e) { Plugin.Logger.LogError("modules tick: " + e.Message); }
-                try { Props.Tick(); } catch (Exception e) { Plugin.Logger.LogError("props tick: " + e.Message); }
-            }
         }
         if (Time.unscaledTime >= _nextSnap) { _nextSnap = Time.unscaledTime + 0.5f; try { Snapshot(hosting); } catch (Exception e) { Plugin.Logger.LogError("snap: " + e.Message); } }
+        Chime.Step(gameObject);
         try { UpdateNametags(); } catch { }
-        try { Chime.Step(gameObject); } catch (Exception e) { Plugin.Logger.LogError("chime step: " + e.Message); }
-    }
-
-    private static void OpenDashboard()
-    {
-        try
-        {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            { FileName = $"http://localhost:{Plugin.Port.Value}/", UseShellExecute = true });
-        }
-        catch (Exception e) { Plugin.Logger.LogError("open browser: " + e.Message); }
     }
 
     // ---------------- enumeration helpers ----------------
@@ -109,23 +92,6 @@ public class OrbBehaviour : MonoBehaviour
         return null;
     }
 
-    internal static string TransformPath(Transform t)
-    {
-        var parts = new List<string>();
-        int guard = 0;
-        while (t != null && guard++ < 12) { parts.Add(t.gameObject.name); t = t.parent; }
-        parts.Reverse();
-        return string.Join("/", parts);
-    }
-
-    // the lobby-size world variant (2/3/4 player worlds differ)
-    internal static int WorldVariant()
-    {
-        try { var v = (int)PlayerCountSwapper.playerCount; if (v > 0) return v; } catch { }
-        try { var v = PlayerNetworking.playerCount; if (v > 0) return v; } catch { }
-        return 0;
-    }
-
     // the join code shown on the in-game magic code screen
     internal static string LobbyCode()
     {
@@ -158,8 +124,7 @@ public class OrbBehaviour : MonoBehaviour
             {
                 _tracks[id] = t = new Track { LastPos = pos, Name = name };
                 OrbState.AddEvent("join", id, name, OrbState.Platform(id));
-                // don't chime for ourselves
-                if (hosting && !pn.isLocalPlayer) Chime.Play(true);
+                Chime.Play(true);
             }
             t.Seen = true; t.Name = name;
 
@@ -215,8 +180,7 @@ public class OrbBehaviour : MonoBehaviour
             if (!kv.Value.Seen)
             {
                 OrbState.AddEvent("leave", kv.Key, kv.Value.Name);
-                // hosting is false by the time a session ends so this stays quiet on shutdown
-                if (hosting) Chime.Play(false);
+                Chime.Play(false);
                 OrbState.RosterOffline(kv.Key);
                 if (_tags.TryGetValue(kv.Key, out var go) && go != null) Destroy(go);
                 _tags.Remove(kv.Key);
@@ -233,7 +197,6 @@ public class OrbBehaviour : MonoBehaviour
         sb.Append("{\"hosting\":").Append(hosting ? "true" : "false")
           .Append(",\"session\":").Append(OrbState.J(OrbState.SessionName))
           .Append(",\"nametags\":").Append(NametagsOn ? "true" : "false")
-          .Append(",\"chime\":").Append(Chime.Enabled ? "true" : "false")
           .Append(",\"code\":").Append(OrbState.J(hosting ? LobbyCode() : ""))
           .Append(",\"password\":").Append(OrbState.J(hosting ? SafeStr(() => Auth()?.password) : ""))
           .Append(",\"players\":[");
@@ -283,6 +246,13 @@ public class OrbBehaviour : MonoBehaviour
     {
         var target = id != null ? ById(id) : null;
         var tn = target != null ? target.playerNetworking : null;
+
+        if (action == "ban" && IsHostBanTarget(id, tn))
+        {
+            OrbState.AddEvent("banblocked", id, tn != null ? Patches.Display(tn) : "host",
+                "the lobby host cannot be banned");
+            return;
+        }
 
         switch (action)
         {
@@ -369,27 +339,25 @@ public class OrbBehaviour : MonoBehaviour
                 break;
             }
 
-            case "chime":
-                Chime.SetEnabled(val != 0);
-                OrbState.AddEvent("chime", null, "host", val != 0 ? "join/leave chime on" : "join/leave chime off");
-                break;
-
             case "nametags":
                 NametagsOn = val != 0;
                 break;
 
-            case "propreset" when !string.IsNullOrEmpty(key):
-                Props.Reset(key, val);
-                break;
-            case "posebaseline":
-                Props.RecapturePoseBaseline();
-                break;
-
             default:
-                if (!Scripting.TryRun(action, id, key, val, text))
-                    OrbState.AddEvent("cmd", null, "host", $"unknown action \"{action}\"");
+                OrbState.AddEvent("cmd", null, "host", $"unknown action \"{action}\"");
                 break;
         }
+    }
+
+    private static bool IsHostBanTarget(string id, PlayerNetworking target)
+    {
+        try
+        {
+            if (target != null && (target.isLocalPlayer || target.isHost)) return true;
+            var local = Local()?.playerNetworking;
+            return local != null && !string.IsNullOrEmpty(id) && id == local.identifier;
+        }
+        catch { return false; }
     }
 
     // ---------------- nametags (local-only) ----------------

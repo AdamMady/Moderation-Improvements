@@ -1,10 +1,11 @@
-Big Orb is licensed under CC BY-NC-SA 4.0 (see LICENSE).
+Moderation code is taken from Big Orb by RadioFreeOpportunity.
+AdamMady created the in-game menu.
 
-Attribution: keep this notice in any copy or derivative work and link to
-the repository you obtained the software from.
+Original source: https://github.com/RadioFreeOpportunity/bigorb
 
-NonCommercial: you may not sell this software, sell access to it, or
-include it in any paid bundle, pack, subscription or service.
+Big Orb and this modified version are licensed under CC BY-NC-SA 4.0.
+See LICENSE for full terms.
 
-ShareAlike: anything you build from it must be released under these same
-terms.
+Attribution: retain this notice and original project link in redistributed copies.
+NonCommercial: do not sell this software, access to it, or include it in paid bundles.
+ShareAlike: adaptations must use same CC BY-NC-SA 4.0 license.

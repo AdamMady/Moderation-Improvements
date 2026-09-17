@@ -24,7 +24,6 @@ internal static class OrbState
     internal volatile static string SnapshotJson = "{\"hosting\":false,\"players\":[]}";
     private static long LastPollTicks;
     internal static void Polled() => System.Threading.Interlocked.Exchange(ref LastPollTicks, Environment.TickCount64);
-    internal static bool DashboardLive => Environment.TickCount64 - System.Threading.Interlocked.Read(ref LastPollTicks) < 5000;
 
     // log files are per hosting session
     internal volatile static string SessionName = "no session";
@@ -82,7 +81,7 @@ internal static class OrbState
 
     internal static void Init()
     {
-        DataDir = Path.Combine(BepInEx.Paths.ConfigPath, "BigOrb");
+        DataDir = Path.Combine(BepInEx.Paths.ConfigPath, "RadiosModeration");
         Directory.CreateDirectory(DataDir);
         Directory.CreateDirectory(Path.Combine(DataDir, "logs"));
         LoadBans();
