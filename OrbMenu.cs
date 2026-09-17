@@ -149,7 +149,7 @@ public class OrbMenu : MonoBehaviour
 
         GUI.depth = -1000;
         var oldColor = GUI.color;
-        GUI.color = new Color(.055f, .065f, .09f, 1f);
+        GUI.color = new Color(.055f, .065f, .09f, .94f);
         GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture);
         GUI.color = oldColor;
 
