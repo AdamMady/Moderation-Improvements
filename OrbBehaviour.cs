@@ -44,11 +44,21 @@ public class OrbBehaviour : MonoBehaviour
             string world = null;
             try { world = SaveManager.worldName; } catch { }
             OrbState.NewSession(world);
+            try { Props.SessionReset(); } catch (Exception e) { Plugin.Logger.LogError("pose snapshot: " + e.Message); }
             if (Plugin.AutoOpen.Value) OpenDashboard();
         }
         _wasHosting = hosting;
 
-        if (Time.unscaledTime >= _nextTick) { _nextTick = Time.unscaledTime + 0.25f; try { Tick(hosting); } catch (Exception e) { Plugin.Logger.LogError("tick: " + e.Message); } }
+        if (Time.unscaledTime >= _nextTick)
+        {
+            _nextTick = Time.unscaledTime + 0.25f;
+            try { Tick(hosting); } catch (Exception e) { Plugin.Logger.LogError("tick: " + e.Message); }
+            if (hosting)
+            {
+                try { Scripting.Tick(); } catch (Exception e) { Plugin.Logger.LogError("modules tick: " + e.Message); }
+                try { Props.Tick(); } catch (Exception e) { Plugin.Logger.LogError("props tick: " + e.Message); }
+            }
+        }
         if (Time.unscaledTime >= _nextSnap) { _nextSnap = Time.unscaledTime + 0.5f; try { Snapshot(hosting); } catch (Exception e) { Plugin.Logger.LogError("snap: " + e.Message); } }
         try { UpdateNametags(); } catch { }
         try { Chime.Step(gameObject); } catch (Exception e) { Plugin.Logger.LogError("chime step: " + e.Message); }
@@ -99,6 +109,23 @@ public class OrbBehaviour : MonoBehaviour
         return null;
     }
 
+    internal static string TransformPath(Transform t)
+    {
+        var parts = new List<string>();
+        int guard = 0;
+        while (t != null && guard++ < 12) { parts.Add(t.gameObject.name); t = t.parent; }
+        parts.Reverse();
+        return string.Join("/", parts);
+    }
+
+    // the lobby-size world variant (2/3/4 player worlds differ)
+    internal static int WorldVariant()
+    {
+        try { var v = (int)PlayerCountSwapper.playerCount; if (v > 0) return v; } catch { }
+        try { var v = PlayerNetworking.playerCount; if (v > 0) return v; } catch { }
+        return 0;
+    }
+
     // the join code shown on the in-game magic code screen
     internal static string LobbyCode()
     {
@@ -116,6 +143,7 @@ public class OrbBehaviour : MonoBehaviour
 
     private void Tick(bool hosting)
     {
+        if (hosting) { try { Guard.Tick(); } catch (Exception e) { Plugin.Logger.LogError("guard: " + e.Message); } }
         foreach (var t in _tracks.Values) t.Seen = false;
 
         foreach (var pc in Players())
@@ -151,10 +179,12 @@ public class OrbBehaviour : MonoBehaviour
             if (hosting && !pn.isLocalPlayer)
             {
                 // catches people who were already in when the ban was added
-                if (OrbState.IsBanned(id))
+                string addr = null; try { addr = pn.connectionToClient?.address; } catch { }
+                if (OrbState.IsBanned(id) || OrbState.IsBannedAddress(addr))
                 {
                     OrbState.AddEvent("autokick", id, name, "banned while in session");
-                    pn.RPCKickUser(pn.connectionToClient);
+                    OrbState.BanAttachAddress(id, addr);
+                    Guard.Kick(pn);
                     continue;
                 }
 
@@ -174,7 +204,7 @@ public class OrbBehaviour : MonoBehaviour
                     if (Plugin.FlyAutoKick.Value)
                     {
                         OrbState.AddEvent("autokick", id, name, "anticheat: " + what);
-                        pn.RPCKickUser(pn.connectionToClient);
+                        Guard.Kick(pn);
                     }
                 }
             }
@@ -231,6 +261,7 @@ public class OrbBehaviour : MonoBehaviour
               .Append(",\"speed\":").Append((t?.Speed ?? 0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))
               .Append(",\"air\":").Append((t?.AirSec ?? 0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))
               .Append(",\"banned\":").Append(OrbState.IsBanned(id) ? "true" : "false")
+              .Append(",\"addr\":").Append(OrbState.J(SafeStr(() => pn.isLocalPlayer ? "" : pn.connectionToClient?.address)))
               .Append('}');
         }
         sb.Append("]}");
@@ -257,17 +288,36 @@ public class OrbBehaviour : MonoBehaviour
         {
             case "kick" when tn != null:
                 OrbState.AddEvent("kick", id, Patches.Display(tn));
-                tn.RPCKickUser(tn.connectionToClient);
+                Guard.Kick(tn);
                 break;
 
             case "ban" when tn != null:
-                // don't kick unless the ban actually saved, otherwise they just rejoin
-                if (OrbState.BanAdd(id, Patches.Display(tn), tn.userPlatformId))
-                    tn.RPCKickUser(tn.connectionToClient);
+            {
+                // don't kick unless the ban actually saved, otherwise they just rejoin.
+                // the transport address goes on the record so a new identifier does not dodge it
+                string addr = null; try { addr = tn.connectionToClient?.address; } catch { }
+                if (OrbState.BanAdd(id, Patches.Display(tn), tn.userPlatformId, addr))
+                    Guard.Kick(tn);
                 break;
+            }
             case "ban": // offline ban
-                OrbState.BanAdd(id, OrbState.RosterName(id) ?? "(offline ban)", 0);
+                OrbState.BanAdd(id, OrbState.RosterName(id) ?? "(offline ban)", 0, OrbState.LastAddressFor(id));
                 break;
+            case "banaddr" when !string.IsNullOrEmpty(key):
+                Guard.BanAddress(key, string.IsNullOrEmpty(text) ? "(address ban)" : text, "manual address ban");
+                break;
+            case "banimport":
+            {
+                var r = OrbState.BansImport(text);
+                OrbState.AddEvent("banimport", null, "host", $"import: {r.added} added, {r.skipped} skipped, {r.bad} bad");
+                break;
+            }
+            case "eoslookup":
+            {
+                var a = key; if (string.IsNullOrEmpty(a) && tn != null) { try { a = tn.connectionToClient?.address; } catch { } }
+                if (!string.IsNullOrEmpty(a)) Guard.Eos.Lookup(a, tn != null ? id : null);
+                break;
+            }
             case "unban":
                 OrbState.BanRemove(id);
                 break;
@@ -326,6 +376,18 @@ public class OrbBehaviour : MonoBehaviour
 
             case "nametags":
                 NametagsOn = val != 0;
+                break;
+
+            case "propreset" when !string.IsNullOrEmpty(key):
+                Props.Reset(key, val);
+                break;
+            case "posebaseline":
+                Props.RecapturePoseBaseline();
+                break;
+
+            default:
+                if (!Scripting.TryRun(action, id, key, val, text))
+                    OrbState.AddEvent("cmd", null, "host", $"unknown action \"{action}\"");
                 break;
         }
     }

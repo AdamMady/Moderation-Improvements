@@ -13,8 +13,20 @@ breaks it, the source is here; fork it.
 
 - **Session code and password** in the header: copy the join code, show/change/remove the password
 - **Player list** with look colours, platform badge and account identifier
-- **Kick** and **ban**. Bans persist and banned identifiers are auto-kicked on every future join.
-  Offline bans from the session roster or by pasting an identifier.
+- **Kick** and **ban**. Bans persist and are enforced server-side at the door, before the
+  player spawns. A ban records the connection's network identity as well as the account
+  identifier, so switching accounts does not get around it. Offline bans from the session
+  roster or by pasting an identifier or connection address.
+- **Ban list import / export** as CSV, so hosts can share lists. Imports merge; nothing is removed.
+- **Modded-client detection.** The identity a client reports (account id, name, platform id,
+  Epic id) is whatever its software says; the network identity it connected with is not.
+  The two are compared, the network identity is looked up on Epic, and voice traffic is
+  rate-limited at the relay. A client caught lying about who it is, logged into Epic with no
+  real account behind it, or flooding voice is banned by its connection automatically
+  (`guard.autoBan`, on by default). Chat that imitates a system message is dropped.
+- **Puzzle reset**: every puzzle back to how it was when the world loaded (pieces, vice, gourd),
+  hub reset, black tower finale reset, and a live progress view (gourds turned in, hubs, keys).
+- **Item reset**: put items back where they were when the world loaded, near you or everywhere.
 - **Chat log** and **sign edit log** with the author of each edit
 - **Sign rollback**: erase a sign or restore any earlier text from the log
 - **Sign lock**: pin a sign's text so guests' edits are reverted (host can still edit it)
@@ -54,9 +66,18 @@ Built and tested against the Steam build of Big Walk current in September 2026
 | `anticheat.autoKick` | false | kick flagged players automatically (off = alert only) |
 | `chime.enabled` | true | join/leave chime |
 | `chime.volume` | 0.5 | chime volume 0-1 |
+| `guard.autoBan` | true | ban the connection of a client proven to be modded (off = alert and disconnect only) |
+| `guard.banAnonymousLogins` | true | treat an Epic login with no linked Steam/PSN/Xbox account as a modded client |
+| `guard.voicePacketsPerSecond` | 120 | voice packets per second per connection before the rest are dropped (talking is ~50); 0 = off |
+| `guard.dropFakeSystemChat` | true | drop guest chat that imitates a system message |
 
-Data lives in `BepInEx/config/BigOrb/`: `bans.json` (one tab-separated line per ban)
+Data lives in `BepInEx/config/BigOrb/`: `bans.json` (one tab-separated line per ban,
+last column is the connection address), `eosmap.tsv` (which real account each connection
+address turned out to be), `posebaseline_Np.tsv` (where items were when a fresh world loaded)
 and `logs/<session>-{chat,signs,alerts,events}.jsonl`.
+
+The ban list ships with one entry: the connection address of a client seen impersonating
+players and flooding voice across several hosts' lobbies. Remove it if you disagree.
 
 ## Things to know
 
@@ -67,6 +88,15 @@ and `logs/<session>-{chat,signs,alerts,events}.jsonl`.
 - Fly/speed detection is a heuristic on position deltas. It will flag a player being
   carried up a cliff by a friend. Leave `autoKick` off unless you have watched the alerts
   for a while and are happy with them.
+- The modded-client checks are not heuristics: a client whose reported Epic id differs from
+  the Epic id it connected with, or whose platform id differs from its account id, is running
+  something. Every legitimate client seen so far matches on both. An Epic account with no
+  linked platform account is an anonymous device login, which the real game never does.
+  If you still want a human in the loop, set `guard.autoBan = false`: you get the alert and
+  the connection is dropped, nothing is recorded.
+- Item and puzzle resets use a baseline of where things were when a *fresh* world loaded.
+  A 4-player-world baseline is built in. Other world sizes are captured the first time you host
+  them, so host a fresh save once before relying on reset for those.
 - Sign locks are per hosting session (network IDs change each time you host).
 - A locked sign still shows the guest their own edit on their screen until it
   next syncs; everyone else sees the locked text.

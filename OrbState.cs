@@ -22,6 +22,9 @@ internal static class OrbState
     internal static readonly Dictionary<string, BanRecord> Bans = new(); // key: identifier
 
     internal volatile static string SnapshotJson = "{\"hosting\":false,\"players\":[]}";
+    private static long LastPollTicks;
+    internal static void Polled() => System.Threading.Interlocked.Exchange(ref LastPollTicks, Environment.TickCount64);
+    internal static bool DashboardLive => Environment.TickCount64 - System.Threading.Interlocked.Read(ref LastPollTicks) < 5000;
 
     // log files are per hosting session
     internal volatile static string SessionName = "no session";
@@ -36,7 +39,7 @@ internal static class OrbState
         AddEvent("session", null, "host", $"hosting started: {SessionName}");
     }
 
-    internal class BanRecord { public string Identifier, Name; public ulong PlatformId; public string When; }
+    internal class BanRecord { public string Identifier, Name; public ulong PlatformId; public string When, Address; }
 
     internal class SeenRecord
     {
@@ -64,6 +67,7 @@ internal static class OrbState
 
     internal static string RosterName(string id)
     {
+        if (string.IsNullOrEmpty(id)) return null;
         lock (Lock) return Roster.TryGetValue(id, out var r) ? r.Name : null;
     }
 
@@ -82,6 +86,7 @@ internal static class OrbState
         Directory.CreateDirectory(DataDir);
         Directory.CreateDirectory(Path.Combine(DataDir, "logs"));
         LoadBans();
+        SeedDefaultBans();
     }
 
     internal static string J(string s)
@@ -98,7 +103,7 @@ internal static class OrbState
         return sb.Append('"').ToString();
     }
 
-    private static string Now() => DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+    internal static string Now() => DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
 
     private static void Add(List<string> list, string json, string file)
     {
@@ -140,12 +145,12 @@ internal static class OrbState
             lock (Lock)
             {
                 Bans.Clear();
-                // identifier \t name \t platformId \t when
+                // identifier \t name \t platformId \t when \t address
                 foreach (var line in File.ReadAllLines(BansPath))
                 {
                     var p = line.Split('\t');
                     if (p.Length >= 4 && p[0].Length > 0)
-                        Bans[p[0]] = new BanRecord { Identifier = p[0], Name = p[1], PlatformId = ulong.TryParse(p[2], out var u) ? u : 0, When = p[3] };
+                        Bans[p[0]] = new BanRecord { Identifier = p[0], Name = p[1], PlatformId = ulong.TryParse(p[2], out var u) ? u : 0, When = p[3], Address = p.Length >= 5 && p[4].Length > 0 ? p[4] : null };
                 }
             }
         }
@@ -155,7 +160,7 @@ internal static class OrbState
     private static void SaveBans()
     {
         lock (Lock)
-            File.WriteAllLines(BansPath, Bans.Values.Select(b => $"{b.Identifier}\t{b.Name?.Replace('\t', ' ')}\t{b.PlatformId}\t{b.When}"));
+            File.WriteAllLines(BansPath, Bans.Values.Select(b => $"{b.Identifier}\t{b.Name?.Replace('\t', ' ')}\t{b.PlatformId}\t{b.When}\t{b.Address ?? ""}"));
     }
 
     // identifier = platform account id. steam is a 17 digit steamid64, psn is 19 digits,
@@ -172,17 +177,101 @@ internal static class OrbState
         return "other";
     }
 
-    internal static bool BanAdd(string id, string name, ulong platformId)
+    // an address ban is keyed "addr:<transport address>" so it can exist without an identifier
+    internal static bool BanAdd(string id, string name, ulong platformId, string address = null)
     {
         if (IsUnsetIdentifier(id))
         {
-            AddAlert("banfail", id, name, "identifier not synced yet, ban NOT recorded, retry in a moment");
-            return false;
+            if (string.IsNullOrEmpty(address))
+            {
+                AddAlert("banfail", id, name, "identifier not synced yet, ban NOT recorded, retry in a moment");
+                return false;
+            }
+            id = "addr:" + address;
         }
-        lock (Lock) Bans[id] = new BanRecord { Identifier = id, Name = name, PlatformId = platformId, When = Now() };
+        lock (Lock) Bans[id] = new BanRecord { Identifier = id, Name = name, PlatformId = platformId, When = Now(), Address = address };
         SaveBans();
-        AddEvent("ban", id, name, Platform(id));
+        AddEvent("ban", id, name, Platform(id) + (address != null ? " addr " + address : ""));
         return true;
+    }
+
+    internal static bool IsBannedAddress(string address)
+    {
+        if (string.IsNullOrEmpty(address) || address == "localhost") return false;
+        lock (Lock) return Bans.Values.Any(b => b.Address == address);
+    }
+
+    // bans that pre-date the address column get the last address the identifier was seen from
+    internal static void BanAttachAddress(string id, string address)
+    {
+        if (string.IsNullOrEmpty(address)) return;
+        bool changed = false;
+        lock (Lock) { if (Bans.TryGetValue(id, out var b) && b.Address == null) { b.Address = address; changed = true; } }
+        if (changed) { SaveBans(); AddEvent("ban", id, RosterName(id), "ban now carries address " + address); }
+    }
+
+    // ---- csv: identifier,name,platformId,when,address ----
+    internal static string BansCsv()
+    {
+        var sb = new StringBuilder("identifier,name,platformId,when,address\n");
+        lock (Lock)
+            foreach (var b in Bans.Values.OrderBy(b => b.When))
+                sb.Append(Csv(b.Identifier)).Append(',').Append(Csv(b.Name)).Append(',').Append(b.PlatformId).Append(',').Append(Csv(b.When)).Append(',').Append(Csv(b.Address)).Append('\n');
+        return sb.ToString();
+    }
+    private static string Csv(string s) { s ??= ""; return s.IndexOfAny(new[] { ',', '"', '\n' }) >= 0 ? "\"" + s.Replace("\"", "\"\"") + "\"" : s; }
+
+    // merge: existing entries are kept, imported ones add identifiers/addresses not already banned
+    internal static (int added, int skipped, int bad) BansImport(string csv)
+    {
+        int added = 0, skipped = 0, bad = 0;
+        if (string.IsNullOrEmpty(csv)) return (0, 0, 0);
+        foreach (var raw in csv.Split('\n'))
+        {
+            var line = raw.TrimEnd('\r').Trim();
+            if (line.Length == 0 || line.StartsWith("identifier,") || line.StartsWith("#")) continue;
+            var f = SplitCsv(line);
+            if (f.Count < 1) { bad++; continue; }
+            var id = f[0].Trim(); var name = f.Count > 1 ? f[1] : ""; var addr = f.Count > 4 ? f[4].Trim() : "";
+            ulong.TryParse(f.Count > 2 ? f[2] : "0", out var plat);
+            if (addr.Length == 0 && id.StartsWith("addr:")) addr = id.Substring(5);
+            if (IsUnsetIdentifier(id) && addr.Length == 0) { bad++; continue; }
+            if (id.StartsWith("addr:") || IsUnsetIdentifier(id)) id = "addr:" + addr;
+            bool exists; lock (Lock) exists = Bans.ContainsKey(id) || (addr.Length > 0 && Bans.Values.Any(b => b.Address == addr));
+            if (exists) { skipped++; continue; }
+            lock (Lock) Bans[id] = new BanRecord { Identifier = id, Name = name, PlatformId = plat, When = f.Count > 3 && f[3].Length > 0 ? f[3] : Now(), Address = addr.Length > 0 ? addr : null };
+            added++;
+        }
+        if (added > 0) SaveBans();
+        AddEvent("banimport", null, "host", $"{added} added, {skipped} already banned, {bad} unreadable");
+        return (added, skipped, bad);
+    }
+    private static List<string> SplitCsv(string line)
+    {
+        var r = new List<string>(); var sb = new StringBuilder(); bool q = false;
+        for (int i = 0; i < line.Length; i++)
+        {
+            var c = line[i];
+            if (q) { if (c == '"') { if (i + 1 < line.Length && line[i + 1] == '"') { sb.Append('"'); i++; } else q = false; } else sb.Append(c); }
+            else if (c == '"') q = true;
+            else if (c == ',') { r.Add(sb.ToString()); sb.Clear(); }
+            else sb.Append(c);
+        }
+        r.Add(sb.ToString());
+        return r;
+    }
+
+    // shipped ban list: known modded clients, keyed by the one thing they cannot change
+    private static readonly (string addr, string name)[] DefaultBans =
+    {
+        ("0002f3f3f940422b9e85ae1057c285c9", "spoofing client (anonymous EOS login, impersonates players, voice flood)"),
+    };
+    internal static void SeedDefaultBans()
+    {
+        int n = 0;
+        foreach (var (addr, name) in DefaultBans)
+            if (!IsBannedAddress(addr)) { lock (Lock) Bans["addr:" + addr] = new BanRecord { Identifier = "addr:" + addr, Name = name, When = Now(), Address = addr }; n++; }
+        if (n > 0) { SaveBans(); AddEvent("ban", null, "host", $"{n} known bad address(es) added from the built-in list"); }
     }
 
     internal static void BanRemove(string id)
@@ -193,6 +282,22 @@ internal static class OrbState
     }
 
     internal static bool IsBanned(string id) { lock (Lock) return id != null && Bans.ContainsKey(id); }
+
+    internal static string LastAddressFor(string id)
+    {
+        lock (Lock) return AddrById.TryGetValue(id ?? "", out var a) ? a : null;
+    }
+    // per-session: what each connection proved (transport address) next to what it claimed
+    internal class AuthInfo { public int ConnId; public string Address, ClaimedId, Version, When; }
+    private static readonly Dictionary<int, AuthInfo> AuthByConn = new();
+    private static readonly Dictionary<string, string> AddrById = new();
+    internal static AuthInfo AuthSeen(int connId, string address, string claimedId, string version)
+    {
+        var a = new AuthInfo { ConnId = connId, Address = address, ClaimedId = claimedId, Version = version, When = Now() };
+        lock (Lock) { AuthByConn[connId] = a; if (!string.IsNullOrEmpty(address) && !string.IsNullOrEmpty(claimedId)) AddrById[claimedId] = address; }
+        return a;
+    }
+    internal static AuthInfo AuthFor(int connId) { lock (Lock) return AuthByConn.TryGetValue(connId, out var a) ? a : null; }
 
     // ---- sign locks (not persisted, netIds change every session) ----
     internal class SignLock { public uint NetId; public string Key, Text, When; }
@@ -221,6 +326,6 @@ internal static class OrbState
     {
         lock (Lock)
             return "[" + string.Join(",", Bans.Values.Select(b =>
-                $"{{\"id\":{J(b.Identifier)},\"name\":{J(b.Name)},\"platformId\":\"{b.PlatformId}\",\"when\":{J(b.When)}}}")) + "]";
+                $"{{\"id\":{J(b.Identifier)},\"name\":{J(b.Name)},\"platformId\":\"{b.PlatformId}\",\"when\":{J(b.When)},\"addr\":{J(b.Address)}}}")) + "]";
     }
 }

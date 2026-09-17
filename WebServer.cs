@@ -17,6 +17,7 @@ internal static class WebServer
             _listener.Prefixes.Add($"http://localhost:{port}/");
             _listener.Prefixes.Add($"http://127.0.0.1:{port}/");
             _listener.Start();
+            Plugin.Logger.LogInfo($"web server listening on {port}: {_listener.IsListening}");
         }
         catch (Exception e)
         {
@@ -33,7 +34,7 @@ internal static class WebServer
         {
             HttpListenerContext ctx;
             try { ctx = _listener.GetContext(); }
-            catch { break; }
+            catch (Exception e) { Plugin.Logger.LogError("web server stopped: " + e.Message); break; }
             ThreadPool.QueueUserWorkItem(delegate (object state) { try { Handle(ctx); } catch { try { ctx.Response.Abort(); } catch { } } });
         }
     }
@@ -65,7 +66,9 @@ internal static class WebServer
 
             case "/api/state":
                 if (!Authorized(ctx)) { ctx.Response.StatusCode = 403; body = "{\"err\":\"bad token\"}"; break; }
+                OrbState.Polled();
                 body = "{\"snap\":" + OrbState.SnapshotJson
+                     + ",\"modules\":" + Scripting.Json
                      + ",\"chat\":" + OrbState.Tail("chat")
                      + ",\"signs\":" + OrbState.Tail("signs")
                      + ",\"alerts\":" + OrbState.Tail("alerts")
@@ -73,6 +76,18 @@ internal static class WebServer
                      + ",\"bans\":" + OrbState.BansJson()
                      + ",\"signlocks\":" + OrbState.SignLocksJson()
                      + ",\"roster\":" + OrbState.RosterJson() + "}";
+                break;
+
+            case "/api/bans.csv":
+                if (!Authorized(ctx) && ctx.Request.QueryString["token"] != Plugin.Token) { ctx.Response.StatusCode = 403; body = "bad token"; type = "text/plain"; break; }
+                body = OrbState.BansCsv();
+                type = "text/csv; charset=utf-8";
+                try { ctx.Response.Headers["Content-Disposition"] = "attachment; filename=\"bigorb-bans.csv\""; } catch { }
+                break;
+
+            case "/api/eosmap":
+                if (!Authorized(ctx)) { ctx.Response.StatusCode = 403; body = "{\"err\":\"bad token\"}"; break; }
+                body = Guard.Eos.Json();
                 break;
 
             case "/api/cmd":
@@ -83,12 +98,24 @@ internal static class WebServer
                 var action = q["action"];
                 int.TryParse(q["val"] ?? "0", out var val);
                 if (string.IsNullOrEmpty(action)) { body = "{\"ok\":false,\"err\":\"no action\"}"; break; }
-                OrbBehaviour.Cmd(action, q["id"], q["key"], val, q["text"]);
+                var text = q["text"];
+                // long payloads (csv import) come in the body
+                if (text == null && ctx.Request.HasEntityBody)
+                {
+                    using var rd = new System.IO.StreamReader(ctx.Request.InputStream, ctx.Request.ContentEncoding);
+                    text = rd.ReadToEnd();
+                }
+                OrbBehaviour.Cmd(action, q["id"], q["key"], val, text);
                 body = "{\"ok\":true}";
                 break;
             }
 
             default:
+                if (path.StartsWith("/api/s/") && Authorized(ctx))
+                {
+                    var r = Scripting.TryEndpoint(path.Substring(7));
+                    if (r != null) { body = r; break; }
+                }
                 ctx.Response.StatusCode = 404;
                 body = "{\"err\":\"not found\"}";
                 break;

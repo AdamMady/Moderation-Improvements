@@ -24,7 +24,7 @@ internal static class Patches
     {
         foreach (var t in new[]
                  {
-                     typeof(IdentifierPatch),
+                     typeof(IdentifierPatch), typeof(Guard.AuthPatch), typeof(Guard.FakeChatPatch),
                      typeof(ChatCmdPatch), typeof(ChatRpcPatch), typeof(ChatReceivePatch), typeof(ChatDisplayPatch),
                      typeof(SignCmdPatch), typeof(SignSyncPatch), typeof(SignSavePatch), typeof(SignLockPatch),
                  })
@@ -273,7 +273,7 @@ internal static class Patches
                 if (OrbState.IsBanned(__1))
                 {
                     OrbState.AddEvent("autokick", __1, Display(__instance), "banned identifier tried to join");
-                    __instance.RPCKickUser(__instance.connectionToClient);
+                    Guard.Kick(__instance);
                 }
             }
             catch (Exception e) { Plugin.Logger.LogError("identifier gate: " + e.Message); }

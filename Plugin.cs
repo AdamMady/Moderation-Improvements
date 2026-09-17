@@ -15,7 +15,7 @@ public class Plugin : BasePlugin
 {
     public const string Guid = "bigorb";
     public const string Name = "Big Orb";
-    public const string Version = "1.0.0";
+    public const string Version = "1.1.0";
 
     internal static ManualLogSource Logger;
     internal static ConfigEntry<int> Port;
@@ -25,6 +25,10 @@ public class Plugin : BasePlugin
     internal static ConfigEntry<bool> FlyAutoKick;
     internal static ConfigEntry<bool> ChimeEnabled;
     internal static ConfigEntry<float> ChimeVolume;
+    internal static ConfigEntry<bool> GuardAutoBan;
+    internal static ConfigEntry<bool> GuardBanAnonymous;
+    internal static ConfigEntry<int> GuardVoiceLimit;
+    internal static ConfigEntry<bool> GuardChatFilter;
 
     // random per launch, embedded in the page and required on api calls so other
     // sites in the browser can't poke the api
@@ -42,6 +46,11 @@ public class Plugin : BasePlugin
         ChimeEnabled = Config.Bind("chime", "enabled", true, "Play a chime on the host's machine when a player joins or leaves");
         ChimeVolume = Config.Bind("chime", "volume", 0.5f, "Chime volume, 0-1 (independent of the game's own volume)");
 
+        GuardAutoBan = Config.Bind("guard", "autoBan", true, "Address-ban a connection that is proven to be a modded client (spoofed identity, voice flood). Off = alert and disconnect only");
+        GuardBanAnonymous = Config.Bind("guard", "banAnonymousLogins", true, "Treat an EOS account with no linked Steam/PSN/Xbox account (anonymous device-id login) as a modded client");
+        GuardVoiceLimit = Config.Bind("guard", "voicePacketsPerSecond", 120, "Voice packets per second a connection may send before the rest are dropped (a talking player sends ~50). 0 = off");
+        GuardChatFilter = Config.Bind("guard", "dropFakeSystemChat", true, "Drop guest chat that imitates a system message (\"host has been removed\" etc.)");
+
         OrbState.Init();
 
         ClassInjector.RegisterTypeInIl2Cpp<OrbBehaviour>();
@@ -50,7 +59,11 @@ public class Plugin : BasePlugin
         go.hideFlags = HideFlags.HideAndDontSave;
         go.AddComponent<OrbBehaviour>();
 
-        Patches.PatchAllSafe(new Harmony(Guid));
+        var harmony = new Harmony(Guid);
+        Patches.PatchAllSafe(harmony);
+        Guard.Voice.Patch(harmony);
+        Guard.Eos.Load();
+        Scripting.Load(harmony);
 
         WebServer.Start(Port.Value);
         Logger.LogInfo($"Big Orb loaded, dashboard at http://localhost:{Port.Value}/");

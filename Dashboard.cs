@@ -40,6 +40,24 @@ button.danger{background:var(--badbg);color:var(--badink)} button.good{backgroun
 .t{color:var(--sub);margin-right:6px;font-size:11px} .who{color:var(--amber);font-weight:600}
 .alert{color:var(--red)} input{background:var(--card2);border:0;border-radius:8px;color:var(--ink);padding:5px 8px;font-size:12px} input:focus{outline:1px solid var(--focus)}
 .dotsmall{display:inline-block;width:11px;height:11px;border-radius:50%;border:1px solid var(--dotline);margin-right:1px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:14px}
+.stat{background:var(--card);border-radius:14px;padding:12px 14px}
+.stat .n{font-size:30px;font-weight:700;line-height:1.1} .stat .n small{font-size:14px;color:var(--sub);font-weight:500}
+.stat .l{color:var(--sub);font-size:11px;text-transform:uppercase;letter-spacing:1.5px;margin-top:2px}
+.bar{height:6px;border-radius:99px;background:var(--card2);margin-top:8px;overflow:hidden;display:flex} .bar i{display:block;height:100%}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:7px}
+.tile{background:var(--card2);border-radius:10px;padding:7px 9px;border-left:4px solid #3a4470;font-size:12px;line-height:1.3;display:flex;gap:7px;align-items:center;min-height:44px}
+.tile .ic{font-size:16px;width:20px;text-align:center} .tile .nm{flex:1;overflow:hidden;text-overflow:ellipsis} .tile .sb{display:block;color:var(--sub);font-size:10.5px}
+.tile.done{border-color:var(--green)} .tile.solved{border-color:var(--amber)} .tile.out{border-color:#7fd6ff} .tile.rest{opacity:.55}
+.hub{background:var(--card2);border-radius:10px;padding:9px 11px;margin-bottom:7px}
+.hub .hd{display:flex;align-items:center;gap:8px} .hub .hd b{flex:1}
+.pips{display:flex;gap:4px;margin:6px 0 2px;align-items:center} .pip{width:16px;height:16px;border-radius:50%;border:2px solid #3a4470;display:flex;align-items:center;justify-content:center;font-size:9px} .pip.on{background:var(--green);border-color:var(--green);color:#0b2a1c}
+.cuts{display:flex;gap:2px} .cuts i{display:block;width:10px;height:6px;border-radius:2px;background:#3a4470} .cuts i.on{background:var(--amber)}
+.chip{font-size:11px;padding:2px 8px;border-radius:99px;background:#2a3358;color:var(--sub)} .chip.ok{background:#173a2c;color:var(--green)} .chip.warn{background:#3d3418;color:var(--amber)} .chip.info{background:#1c3a52;color:#7fd6ff}
+.gourd{display:flex;gap:9px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05)} .gourd:last-child{border:0} .gourd .ic{font-size:18px;width:24px;text-align:center}
+.gate{display:flex;align-items:center;gap:8px;padding:3px 0} .gv{width:26px;text-align:center;color:var(--amber)}
+.badge.frozen{background:#1c3a52;color:#7fd6ff} .badge.good{background:var(--okbg);color:var(--green)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--sub);margin:0 0 8px} .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
 </style></head><body>
 <div class="top">
  <h1>⚫ BIG ORB</h1>
@@ -57,17 +75,55 @@ button.danger{background:var(--badbg);color:var(--badink)} button.good{backgroun
 
 <div class="cols">
  <div>
-  <div class="card" style="margin-bottom:12px"><h2>⚠ Cheat alerts</h2><div class="meta" style="margin-bottom:6px">Heuristic only. Sustained climbing or speed gets flagged, which also catches players being carried, launched or lagging. Use it to decide who to watch, not as proof.</div><div id="alerts" class="log"></div></div>
+  <div class="card" style="margin-bottom:12px"><h2>⚠ Cheat alerts</h2><div class="meta" style="margin-bottom:6px">fly / speed are heuristics (carried, launched or lagging players trip them too). idspoof, epicspoof, platspoof, eosspoof, eosanon and voiceflood are not: those are a client lying about who it is or flooding the voice relay, and with guard.autoBan on its connection is banned automatically.</div><div id="alerts" class="log"></div></div>
   <div class="card" style="margin-bottom:12px"><h2>💬 Chat log</h2><div id="chat" class="log"></div></div>
   <div class="card"><h2>✏ Sign edits</h2><div id="signlocks" class="meta" style="margin-bottom:6px"></div><div id="signs" class="log"></div></div>
  </div>
  <div>
   <div class="card" style="margin-bottom:12px"><h2>⛔ Ban list</h2>
-   <div style="display:flex;gap:6px;margin-bottom:8px"><input id="banId" placeholder="identifier to ban manually" style="flex:1"><button class="danger" onclick="cmd('ban',{id:el('banId').value});el('banId').value=''">ban</button></div>
+   <div style="display:flex;gap:6px;margin-bottom:8px"><input id="banId" placeholder="identifier or connection address to ban manually" style="flex:1"><button class="danger" onclick="const v=el('banId').value.trim();if(/^[0-9a-f]{32}$/i.test(v))cmd('banaddr',{key:v,text:'manual'});else cmd('ban',{id:v});el('banId').value=''">ban</button></div>
+   <div style="display:flex;gap:6px;margin-bottom:8px"><a href="/api/bans.csv?token={{TOKEN}}" download><button>⬇ export csv</button></a><button onclick="el('banImportBox').style.display=el('banImportBox').style.display==='none'?'':'none'">⬆ import csv</button></div>
+   <div id="banImportBox" style="display:none;margin-bottom:8px"><textarea id="banCsv" rows="5" style="width:100%;box-sizing:border-box" placeholder="identifier,name,platformId,when,address&#10;paste a csv exported from another host; entries already on your list are skipped"></textarea><button onclick="banImport()">merge into my ban list</button></div>
    <div id="bans" class="log"></div>
   </div>
   <div class="card" style="margin-bottom:12px"><h2>👥 Everyone this session</h2><div id="roster" class="log"></div></div>
   <div class="card"><h2>📜 Events</h2><div id="events" class="log"></div></div>
+ </div>
+</div>
+
+<div id="world" style="margin-top:16px">
+ <h2 style="margin:0 0 10px">🌍 World</h2>
+ <div class="meta" style="margin-bottom:10px">Puzzle, hub and finale state comes from the world's own state objects. Reset returns a puzzle to how it was when the world loaded — pieces back, vice closed, gourd back in it. Nothing here touches the save until the game writes it itself.</div>
+ <div class="stats" id="prStats"></div>
+ <div class="cols">
+  <div>
+   <div class="card" style="margin-bottom:12px">
+    <h2>🧩 Puzzles</h2>
+    <div class="legend"><span><i style="background:var(--green)"></i>gourd turned in</span><span><i style="background:#7fd6ff"></i>gourd out in the world</span><span><i style="background:var(--amber)"></i>solved, gourd still in vice</span><span><i style="background:#3a4470"></i>untouched</span></div>
+    <div id="prPuzzles" class="tiles" style="margin-bottom:10px"></div>
+    <div class="pname" style="margin:4px 0">🏆 Solves <button id="btnSolveChime" style="margin-left:6px"></button> <button onclick="cmd('solveclear')">clear</button></div>
+    <div id="solves" class="log" style="max-height:140px;margin-bottom:10px"></div>
+    <div id="puzzlemgmt" style="margin-bottom:10px"></div>
+    <div style="margin:4px 0"><button onclick="cmd('bringgourds')">🥒 bring all puzzle gourds to me</button> <span class="meta">unpins every puzzle's gourd and drops them in front of you</span></div>
+   </div>
+   <div class="card" style="margin-bottom:12px"><h2>📦 Items</h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+     <button onclick="cmd('propreset',{key:'near',val:30})">reset items near me (30m)</button>
+     <button class="danger" onclick="if(confirm('Return every item in the world to where it was when the world loaded?'))cmd('propreset',{key:'all'})">reset ALL items</button>
+     <input id="prKey" placeholder="prop group, e.g. RewardGourd" style="width:190px"><button onclick="cmd('propreset',{key:el('prKey').value})">reset group</button>
+    </div>
+    <div class="meta" style="margin-top:6px">Items go back to where they were when the world loaded (re-pinned into their home if they had one; anything being carried is dropped first). The 4-player world ships with a fresh-world baseline; other sizes are captured the first time you host them, so host a fresh save once for those.</div>
+   </div>
+  </div>
+  <div>
+   <div class="card" style="margin-bottom:12px"><h2>🗝 Hubs</h2><div id="prHubs"></div><div id="hubmgmt" style="margin-top:8px"></div></div>
+   <div class="card" style="margin-bottom:12px"><h2>🥒 Gourds out in the world</h2><div id="prGourds"></div></div>
+   <div class="card" style="margin-bottom:12px"><h2>🌑 Black tower finale</h2>
+    <div style="margin-bottom:8px"><button class="danger" onclick="if(confirm('Reset the whole finale? Dream door, monument and black key, all seven gauntlet levels, final bell. Best with nobody inside the tower.'))cmd('finalereset',{key:'all'})">reset the whole finale</button></div>
+    <div id="finalemgmt"></div>
+   </div>
+   <div id="scpanels"></div>
+  </div>
  </div>
 </div>
 
@@ -118,6 +174,7 @@ document.addEventListener('click',e=>{
 });
 function cmd(action,extra={}){const q=new URLSearchParams({action,...extra});fetch('/api/cmd?'+q,{method:'POST',headers:{'X-Orb-Token':TOKEN}}).then(refresh);}
 function row(e,html){return `<div><span class="t">${esc(e.t)}</span>${html}</div>`}
+function banImport(){const t=el('banCsv').value;if(!t.trim())return;fetch('/api/cmd?action=banimport',{method:'POST',headers:{'X-Orb-Token':TOKEN,'Content-Type':'text/plain'},body:t}).then(()=>{el('banCsv').value='';el('banImportBox').style.display='none';refresh();});}
 async function refresh(){
  let d; try{d=await (await fetch('/api/state',{headers:{'X-Orb-Token':TOKEN}})).json();}catch(e){el('host').textContent='plugin offline';el('host').className='pill off';return;}
  const s=d.snap;
@@ -174,9 +231,105 @@ async function refresh(){
   const btn=r.banned?`<button class="good" data-runban="${i}">unban</button>`:`<button class="danger" data-rban="${i}">ban</button>`;
   return `<div>${dots} <span style="color:${r.online?'var(--green)':'var(--sub)'}">●</span> <b>${esc(r.name)}</b>${aka} <span class="t">joined ${esc(r.first)} · last ${esc(r.last||'?')}</span> ${btn}</div>`;
  }).join('')||'<div class="meta">nobody yet</div>';
+ try{renderWorld(d);}catch(err){console.error(err);}
  lastBans=d.bans;
- el('bans').innerHTML=d.bans.map((b,i)=>`<div><b>${esc(b.name)}</b> <span class="t">${esc(b.id).slice(0,24)} · ${esc(b.when)}</span> <button class="good" data-unban="${i}">unban</button></div>`).join('')||'<div class="meta">no bans</div>';
+ el('bans').innerHTML=d.bans.map((b,i)=>`<div><b>${esc(b.name)}</b> <span class="t">${esc(b.id).slice(0,24)}${b.addr?' · addr '+esc(b.addr).slice(0,8)+'…':''} · ${esc(b.when)}</span> <button class="good" data-unban="${i}">unban</button></div>`).join('')||'<div class="meta">no bans</div>';
 }
+
+// ---- world: module panels ----
+ window.panel_hubs=function(list){
+  const box=el('hubmgmt'); if(!box) return '';
+  box.innerHTML=(list||[]).map(h=>{
+   const st=h.filled===0&&h.cuts===0&&h.keyWhere==='KeyStoneHome'?'<span class="badge good">at rest</span>':'<span class="badge frozen">in progress</span>';
+   return `<div class="gate"><span class="gv">🗝</span><span style="flex:1"><b>${esc(h.label)}</b> ${st} <span class="t">slots ${h.filled}/${h.slots} · key ${esc(h.keyWhere)} · cuts ${h.cuts}/${h.cutsN}${h.complete?' (complete)':''} · ${esc(h.save)}=${h.saveVal===null?'unset':h.saveVal} · ${esc(h.note)}</span></span>
+    <button class="danger" onclick="cmd('hubfill',{key:'${h.root}'})" title="cheat: pin puzzle gourds into every empty slot (takes them from their puzzles)">🔥 fill</button><button onclick="cmd('resethub',{key:'${h.root}',val:1})" title="gourds dropped at the hub">reset, keep gourds</button><button onclick="cmd('resethub',{key:'${h.root}'})" title="every gourd in a slot, loose nearby or carried goes back to its puzzle and that puzzle is reset; key blanked and back in its stone; whatever the key was activating is reset too">reset all</button></div>`;
+  }).join('')||'<div class="meta">no hubs registered</div>';
+  return '';
+ };
+ window.panel_mines=function(m){ return `<div class="card" style="margin-bottom:8px"><div class="pname">mines (${m.bombCount} bombs)</div><div>bombs: <b>${(m.bombs||[]).map(esc).join(', ')||'—'}</b></div><div class="t">safe: ${(m.safe||[]).map(esc).join(', ')||'—'}</div><button onclick="cmd('minecheat',{key:'MemoryBombs',val:1})">press all safe mines</button></div>`; };
+ window.panel_finale=function(f){
+  const box=el('finalemgmt'); if(!box) return '';
+  const tr=el('dreamTrapped'); if(tr) tr.innerHTML=(f.trapped||[]).length?'🔁 looping: <b>'+f.trapped.map(esc).join(', ')+'</b>':'';
+  box.innerHTML=(f.stages||[]).map(s=>{
+   const pr=Object.entries(s.probe||{}).map(([k,v])=>`${esc(k)} ${v===null?'?':v}`).join(' · ');
+   const done=!!s.done;
+   return `<div class="gate"><span class="gv">${done?'🔓':'🔒'}</span><span style="flex:1"><b>${esc(s.label)}</b> ${done?'<span class="badge frozen">open</span>':'<span class="badge good">at rest</span>'} <span class="t">${pr}${f.held?` · holding ${f.held}`:''} · ${esc(s.note)}</span></span>
+    <button onclick="cmd('finalereset',{key:'${s.key}'})">reset</button></div>`;
+  }).join('')||'<div class="meta">no finale stages registered</div>';
+  return '';
+ };
+ window.panel_solves=function(s){
+  const b=el('btnSolveChime'); if(b){b.textContent='chime: '+(s.chime?'ON':'off'); b.className=s.chime?'good':''; b.onclick=()=>cmd('solvechime',{val:s.chime?0:1});}
+  const ic={puzzle:'🏆',hub:'🗝',key:'🔑'};
+  el('solves').innerHTML=(s.recent||[]).map(r=>`<div><span class="t">${esc(r.t)}</span> ${ic[r.kind]||'•'} <b>${esc(r.what)}</b>${r.who?' <span class="t">— '+esc(r.who)+'</span>':''}</div>`).join('')||'<div class="meta">nothing solved yet this session</div>';
+  return '';
+ };
+ window.panel_gourds=function(){ return ''; }; // rendered on the progress tab
+ window.panel_puzzles=function(list){
+  el('puzzlemgmt').innerHTML=(list||[]).map(p=>{
+   const solved=(p.vice===0)||(p.vice===null&&p.changed>0&&p.gourdsHome<p.gourds), home=p.gourdsHome===p.gourds;
+   const st=solved?'<span class="badge frozen">solved</span>':(p.changed>0?'<span class="badge">'+p.changed+' state(s) off baseline</span>':'<span class="badge good">at rest</span>');
+   return `<div class="gate"><span class="gv">${home?'🥒':'💨'}</span><span style="flex:1"><b>${esc(p.label)}</b> ${st} <span class="t">vice ${p.vice===null?'?':p.vice} · gourd ${home?'in vice':(esc(p.gourdWhere||'?'))} · save ${esc(p.save)}=${p.saveVal===null?'unset':p.saveVal} · ${esc(p.note)}</span></span>
+    ${p.root==='PointersParadise'?`<input type="number" min="1" max="99" style="width:44px" id="pl_${p.root}" placeholder="len"><button onclick="cmd('progress',{key:'${p.root}',val:el('pl_${p.root}').value||0})" title="sequence length (requiredIncrements); blank = read current">length</button>`:''}    ${p.cheat?`<button class="danger" onclick="cmd('${p.cheat}',{key:'${p.root}'})">${p.cheat==='nhold'?'🔥 force start':p.cheat==='countcheat'?'🔢 fill answer':p.cheat==='minecheat'?'👁 reveal mines':'🔥 cheat solve'}</button>`:''}<button onclick="cmd('resetpuzzle',{key:'${p.root}'})">reset</button></div>`;
+  }).join('')||'<div class="meta">no puzzles registered</div>';
+  return '';
+ };
+function renderProgress(pn){
+  const pz=pn.puzzles||[], hubs=pn.hubs||[], g=pn.gourds||{list:[]}, gl=g.list||[];
+ const byRoot={}; gl.forEach(x=>{ if(x.root) byRoot[x.root]=x; });
+ const short=l=>(l||'').replace(/\s*\(.*$/,'');
+ let solved=0, launched=0, done=0;
+ el('prPuzzles').innerHTML=pz.map(p=>{
+  const gd=byRoot[p.root]||{};
+  const isSolved=(p.vice===0)||(p.vice===null&&p.changed>0&&p.gourdsHome<p.gourds);
+  const isLaunched=p.saveVal!==null&&p.saveVal!==0;
+  const inSlot=gd.where==='slot', out=!!gd.where&&gd.where!=='puzzle'&&!inSlot;
+  if(isSolved) solved++; if(isLaunched) launched++; if(inSlot) done++;
+  const cls=inSlot?'done':out?'out':isSolved?'solved':'rest';
+  const ic=inSlot?'🏛':gd.where==='held'?'🙌':gd.where==='backpack'?'🎒':out?'💨':isSolved?'🔓':'🥒';
+  const sub=inSlot?('at '+short(gd.slotOf||'?')):(gd.where==='held'||gd.where==='backpack')?(gd.heldBy||'carried'):out?'dropped '+(gd.detail||'').replace(/^(loose|in [^·]+)\s*·\s*/,'').replace(/\s*·\s*at.*$/,''):isSolved?'solved, gourd waiting':(p.changed>0?p.changed+' state(s) touched':'at rest');
+  return `<div class="tile ${cls}" title="${esc(p.label)} — ${esc(gd.detail||p.gourdWhere||'')}${isLaunched?' · launched':''}"><span class="ic">${ic}</span><span class="nm">${esc(short(p.label))}<span class="sb">${esc(sub)}</span></span></div>`;
+ }).join('')||'<div class="meta">no puzzles registered (scripts loaded?)</div>';
+ const out=gl.filter(x=>x.where!=='puzzle'&&x.where!=='slot');
+ const hubsDone=hubs.filter(h=>h.complete&&h.keyWhere!=='KeyStoneHome'&&h.keyWhere!=='loose').length;
+ const hubsFull=hubs.filter(h=>h.slots>0&&h.filled>=h.slots).length;
+ const T=pz.length||1, pc=v=>Math.round(100*v/T);
+ el('prStats').innerHTML=`
+  <div class="stat"><div class="n">${done}<small> / ${pz.length}</small></div><div class="l">gourds turned in</div><div class="bar"><i style="width:${pc(done)}%;background:var(--green)"></i><i style="width:${pc(out.length)}%;background:#7fd6ff"></i></div></div>
+  <div class="stat"><div class="n">${launched}<small> / ${pz.length}</small></div><div class="l">puzzles launched this save</div><div class="bar"><i style="width:${pc(launched)}%;background:var(--amber)"></i></div></div>
+  <div class="stat"><div class="n">${solved}</div><div class="l">vices open right now</div></div>
+  <div class="stat"><div class="n">${out.length}</div><div class="l">gourds loose or carried</div></div>
+  <div class="stat"><div class="n">${hubsDone}<small> / ${hubs.length}</small></div><div class="l">keys placed · ${hubsFull} hubs full</div><div class="bar"><i style="width:${hubs.length?Math.round(100*hubsDone/hubs.length):0}%;background:var(--green)"></i></div></div>`;
+ el('prGourds').innerHTML=out.map(x=>{
+  const ic=x.where==='held'?'🙌':x.where==='backpack'?'🎒':'💨';
+  const who=x.where==='held'?`<span class="chip info">carried by ${esc(x.heldBy||'?')}</span>`:x.where==='backpack'?`<span class="chip info">in ${esc(x.heldBy||'?')}'s backpack</span>`:`<span class="chip warn">dropped</span>`;
+  const where=(x.where==='held'||x.where==='backpack')?'':(x.detail||'').replace(/^(loose|in [^·]+)\s*·\s*/,'');
+  const tp=x.net?`<button onclick="cmd('bringnet',{key:${x.net}})" title="pull it to me (takes it off whoever holds it)" style="padding:3px 8px;font-size:11px">➡ to me</button>`:'';
+  return `<div class="gourd"><span class="ic">${ic}</span><span style="flex:1"><b>${esc(short(x.label))}</b> ${who}<div class="meta">${esc(where)}${x.flag?' · map: '+esc(x.flag):''}</div></span>${tp}</div>`;
+ }).join('')||'<div class="meta">every gourd is either in its puzzle or turned in ✨</div>';
+ el('prHubs').innerHTML=hubs.map(h=>{
+  const inSlots=gl.filter(x=>x.where==='slot'&&x.slotOf===h.label).map(x=>short(x.label));
+  const rest=h.filled===0&&h.cuts===0&&h.keyWhere==='KeyStoneHome';
+  const placed=h.complete&&h.keyWhere!=='KeyStoneHome'&&h.keyWhere!=='loose';
+  const st=placed?'<span class="chip ok">key placed</span>':rest?'<span class="chip">untouched</span>':(h.filled>=h.slots&&h.slots>0)?'<span class="chip warn">full — key stage</span>':'<span class="chip warn">collecting</span>';
+  const pips=Array.from({length:h.slots},(_,i)=>`<div class="pip ${i<h.filled?'on':''}" title="${i<h.filled?esc(inSlots[i]||'gourd'):'empty'}">${i<h.filled?'✓':''}</div>`).join('');
+  const cuts=h.cutsN?`<span class="cuts" title="key cuts ${h.cuts}/${h.cutsN}">${Array.from({length:h.cutsN},(_,i)=>`<i class="${i<h.cuts?'on':''}"></i>`).join('')}</span>`:'';
+  const key=h.keyWhere==='KeyStoneHome'?'key in stone':h.keyWhere==='loose'?'key loose (dropped)':h.keyWhere.startsWith('carried')?'key '+esc(h.keyWhere):'key → '+esc(h.keyWhere.replace(/^BigKeyPlinth\s*/,''));
+  return `<div class="hub"><div class="hd"><span>${placed?'🏛':'🗝'}</span><b>${esc(short(h.label))}</b>${st}</div><div class="pips">${pips}<span class="meta" style="margin-left:6px">${h.filled}/${h.slots}</span></div><div class="meta" style="display:flex;gap:8px;align-items:center">${cuts}<span>${key}${h.complete?' · cut':''}</span></div>${inSlots.length?`<div class="meta" style="margin-top:3px">${inSlots.map(esc).join(' · ')}</div>`:''}</div>`;
+ }).join('')||'<div class="meta">no hubs registered</div>';
+}
+
+function renderWorld(d){
+ const pn=(d.modules||{}).panels||{};
+ try{renderProgress(pn);}catch(err){console.error(err);}
+ const extra=[];
+ for(const [k,v] of Object.entries(pn)){
+  const fn=window['panel_'+k];
+  if(fn){try{const h=fn(v);if(h)extra.push(h);}catch(err){console.error(err);}}
+ }
+ el('scpanels').innerHTML=extra.join('');
+}
+
 refresh();setInterval(refresh,1000);
 </script></body></html>
 """;
