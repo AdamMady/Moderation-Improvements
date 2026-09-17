@@ -1,6 +1,7 @@
 # Moderation Improvements
 
 A fork of RadioFreeOpportunity's [Big Orb](https://github.com/RadioFreeOpportunity/bigorb) that adds a menu that opens up when you press "L"!
+I honestly highly recommend just getting Big Orb, It has more moderation features, I stripped away the puzzle resetting and item resetting features, The only reason I made this is because the browser + big walk was lagging my computer!
 
 ## What it does
 
