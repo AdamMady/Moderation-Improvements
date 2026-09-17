@@ -15,7 +15,7 @@ namespace BigOrb;
 [BepInDependency("IceBoxStudio.BigWalk.ModSettingsMenu", BepInDependency.DependencyFlags.SoftDependency)]
 public class Plugin : BasePlugin
 {
-    public const string Guid = "radiosmoderation";
+    public const string Guid = "AdamMady.ModerationImprovements";
     public const string Name = "Moderation Improvements";
     public const string Version = "1.0.0";
 

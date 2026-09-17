@@ -81,7 +81,7 @@ internal static class OrbState
 
     internal static void Init()
     {
-        DataDir = Path.Combine(BepInEx.Paths.ConfigPath, "RadiosModeration");
+        DataDir = Path.Combine(BepInEx.Paths.ConfigPath, "ModerationImprovements");
         Directory.CreateDirectory(DataDir);
         Directory.CreateDirectory(Path.Combine(DataDir, "logs"));
         LoadBans();

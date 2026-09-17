@@ -6,7 +6,7 @@ Features: kick, persistent bans, roster, CSV ban import/export, spoof and anonym
 
 World, puzzle, item, finale, and progress features from Big Orb are excluded from build.
 
-Data remains under `BepInEx/config/RadiosModeration/` so updates retain existing bans. Logs may include names, chat, signs, account IDs, and connection IDs. Original Big Orb's single built-in banned connection is retained; there is no online ban-list synchronization.
+Data is stored under `BepInEx/config/ModerationImprovements/`. Logs may include names, chat, signs, account IDs, and connection IDs. Original Big Orb's single built-in banned connection is retained; there is no online ban-list synchronization.
 
 Discord: https://discord.gg/5z3WvVhxCf
 
@@ -25,5 +25,5 @@ Original and modified work are licensed under **CC BY-NC-SA 4.0**. See `LICENSE`
 Requires .NET 6 SDK plus generated Big Walk BepInEx IL2CPP interop assemblies.
 
 ```powershell
-dotnet build ModerationImprovements.csproj -c Release -p:BigWalkBepInEx="C:\path\to\Big Walk\BepInEx" -p:SkipDeploy=true
+dotnet build BigOrb.csproj -c Release -p:BigWalkBepInEx="C:\path\to\Big Walk\BepInEx" -p:SkipDeploy=true
 ```

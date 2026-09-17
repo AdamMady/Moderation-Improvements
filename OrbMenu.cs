@@ -332,7 +332,7 @@ public class OrbMenu : MonoBehaviour
         InputField("ban", "Ban identifier or connection address", ref _banId);
         Buttons(("Ban identifier", () => { if (!string.IsNullOrWhiteSpace(_banId)) Send("ban", _banId.Trim(), confirm: true); }),
             ("Ban address", () => { if (!string.IsNullOrWhiteSpace(_banId)) Send("banaddr", key: _banId.Trim(), text: "Manual ban", confirm: true); }));
-        InputField("csv", "CSV file path (empty uses config/RadiosModeration/bans-export.csv)", ref _csvPath);
+        InputField("csv", "CSV file path (empty uses config/ModerationImprovements/bans-export.csv)", ref _csvPath);
         Buttons(("Export bans CSV", () => Csv(false)), ("Import bans CSV", () => Csv(true)));
 
         Text("Banned players", true);
