@@ -20,6 +20,9 @@ internal static class OrbState
     private static readonly List<string> Alerts = new();
     private static readonly List<string> Events = new();
     internal static readonly Dictionary<string, BanRecord> Bans = new(); // key: identifier
+    private static readonly HashSet<string> LobbyLockIds = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> LobbyLockAddresses = new(StringComparer.Ordinal);
+    internal static bool LobbyLocked { get; private set; }
 
     internal volatile static string SnapshotJson = "{\"hosting\":false,\"players\":[]}";
     private static long LastPollTicks;
@@ -34,8 +37,43 @@ internal static class OrbState
         SessionName = string.IsNullOrEmpty(worldName) ? "unnamed" : worldName;
         var safe = new string(SessionName.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
         _sessionTag = $"{safe}-{DateTime.Now:yyyyMMdd-HHmmss}";
-        lock (Lock) { Chat.Clear(); Signs.Clear(); Alerts.Clear(); Events.Clear(); Roster.Clear(); SignLocks.Clear(); }
+        lock (Lock)
+        {
+            Chat.Clear(); Signs.Clear(); Alerts.Clear(); Events.Clear(); Roster.Clear(); SignLocks.Clear();
+            LobbyLocked = false; LobbyLockIds.Clear(); LobbyLockAddresses.Clear();
+        }
         AddEvent("session", null, "host", $"hosting started: {SessionName}");
+    }
+
+    internal static int SetLobbyLocked(IEnumerable<string> ids, IEnumerable<string> addresses)
+    {
+        lock (Lock)
+        {
+            LobbyLockIds.Clear(); LobbyLockAddresses.Clear();
+            foreach (var id in ids ?? Enumerable.Empty<string>())
+                if (!IsUnsetIdentifier(id)) LobbyLockIds.Add(id);
+            foreach (var address in addresses ?? Enumerable.Empty<string>())
+                if (!string.IsNullOrEmpty(address) && address != "localhost") LobbyLockAddresses.Add(address);
+            LobbyLocked = true;
+            return LobbyLockIds.Count;
+        }
+    }
+
+    internal static void UnlockLobby()
+    {
+        lock (Lock) { LobbyLocked = false; LobbyLockIds.Clear(); LobbyLockAddresses.Clear(); }
+    }
+
+    internal static bool LobbyAllows(string id, string address)
+    {
+        lock (Lock)
+            return !LobbyLocked || (!IsUnsetIdentifier(id) && LobbyLockIds.Contains(id)) ||
+                (!string.IsNullOrEmpty(address) && LobbyLockAddresses.Contains(address));
+    }
+
+    internal static int LobbyLockCount
+    {
+        get { lock (Lock) return LobbyLockIds.Count; }
     }
 
     internal class BanRecord { public string Identifier, Name; public ulong PlatformId; public string When, Address; }

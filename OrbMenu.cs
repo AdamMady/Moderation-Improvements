@@ -297,6 +297,13 @@ public class OrbMenu : MonoBehaviour
         Text("Join code: " + Str(snap, "code"));
         Buttons(("Copy join code", () => GUIUtility.systemCopyBuffer = Str(snap, "code")),
             ("Name tags: " + OrbBehaviour.NametagsOn, () => Send("nametags", val: OrbBehaviour.NametagsOn ? 0 : 1)));
+        if (NetworkServer.active)
+        {
+            bool locked = Flag(snap, "locked");
+            Buttons((locked ? "Unlock Lobby" : "Lock Lobby (keep current players)",
+                () => Send(locked ? "unlocklobby" : "locklobby", confirm: true)));
+            if (locked) Text("Locked: current players may reconnect; new players are rejected.");
+        }
 
         foreach (var player in Rows(Get(snap, "players")))
         {

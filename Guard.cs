@@ -111,6 +111,11 @@ internal static class Guard
                     OrbState.BanAttachAddress(claimed, addr);
                     __0.Disconnect(); return;
                 }
+                if (!OrbState.LobbyAllows(claimed, addr))
+                {
+                    OrbState.AddEvent("lockreject", claimed, who, $"lobby locked; connection {addr ?? "?"} was not present when locked");
+                    __0.Disconnect(); return;
+                }
                 if (string.IsNullOrEmpty(addr) || string.IsNullOrEmpty(claimed) || addr == "localhost") return;
 
                 // steam transport: address and identifier are both steam ids and must agree

@@ -279,6 +279,13 @@ internal static class Patches
                 {
                     OrbState.AddEvent("autokick", __1, Display(__instance), "banned identifier tried to join");
                     Guard.Kick(__instance);
+                    return;
+                }
+                string address = null; try { address = __instance.connectionToClient?.address; } catch { }
+                if (!OrbState.LobbyAllows(__1, address))
+                {
+                    OrbState.AddEvent("lockreject", __1, Display(__instance), "lobby locked; player was not present when locked");
+                    Guard.Kick(__instance);
                 }
             }
             catch (Exception e) { Plugin.Logger.LogError("identifier gate: " + e.Message); }

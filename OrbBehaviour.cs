@@ -152,6 +152,12 @@ public class OrbBehaviour : MonoBehaviour
                     Guard.Kick(pn);
                     continue;
                 }
+                if (!OrbState.LobbyAllows(id, addr))
+                {
+                    OrbState.AddEvent("lockreject", id, name, "lobby locked; player was not present when locked");
+                    Guard.Kick(pn);
+                    continue;
+                }
 
                 // no raycasts here, they blow the raycast budget in a full lobby.
                 // just look at how long someone keeps going up / going fast.
@@ -197,6 +203,8 @@ public class OrbBehaviour : MonoBehaviour
         sb.Append("{\"hosting\":").Append(hosting ? "true" : "false")
           .Append(",\"session\":").Append(OrbState.J(OrbState.SessionName))
           .Append(",\"nametags\":").Append(NametagsOn ? "true" : "false")
+          .Append(",\"locked\":").Append(OrbState.LobbyLocked ? "true" : "false")
+          .Append(",\"lockAllowed\":").Append(OrbState.LobbyLockCount)
           .Append(",\"code\":").Append(OrbState.J(hosting ? LobbyCode() : ""))
           .Append(",\"password\":").Append(OrbState.J(hosting ? SafeStr(() => Auth()?.password) : ""))
           .Append(",\"players\":[");
@@ -290,6 +298,29 @@ public class OrbBehaviour : MonoBehaviour
             }
             case "unban":
                 OrbState.BanRemove(id);
+                break;
+
+            case "locklobby":
+            {
+                var ids = new List<string>();
+                var addresses = new List<string>();
+                foreach (var pc in Players())
+                {
+                    var pn = pc.playerNetworking;
+                    if (pn == null) continue;
+                    ids.Add(pn.identifier);
+                    if (!pn.isLocalPlayer)
+                    {
+                        try { addresses.Add(pn.connectionToClient?.address); } catch { }
+                    }
+                }
+                var count = OrbState.SetLobbyLocked(ids, addresses);
+                OrbState.AddEvent("lobbylock", null, "host", $"locked to {count} current player identifier(s)");
+                break;
+            }
+            case "unlocklobby":
+                OrbState.UnlockLobby();
+                OrbState.AddEvent("lobbyunlock", null, "host", "new players may join again");
                 break;
 
             case "signset" when key != null && uint.TryParse(key, out var signNet):
