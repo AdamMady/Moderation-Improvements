@@ -16,7 +16,7 @@ public class Plugin : BasePlugin
 {
     public const string Guid = "AdamMady.ModerationImprovements";
     public const string Name = "Moderation Improvements";
-    public const string Version = "1.0.2";
+    public const string Version = "1.0.3";
 
     internal static ManualLogSource Logger;
     internal static ConfigEntry<float> FlyMaxSpeed;
