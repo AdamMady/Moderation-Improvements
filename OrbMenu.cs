@@ -306,9 +306,16 @@ public class OrbMenu : MonoBehaviour
     private void Players()
     {
         var snap = Get(Root, "snap");
+        bool hideNSeek = Flag(snap, "hideNSeek");
         Text("Join code: " + Str(snap, "code"));
-        Buttons(("Copy join code", () => GUIUtility.systemCopyBuffer = Str(snap, "code")),
-            ("Name tags: " + OrbBehaviour.NametagsOn, () => Send("nametags", val: OrbBehaviour.NametagsOn ? 0 : 1)));
+        if (hideNSeek)
+        {
+            Buttons(("Copy join code", () => GUIUtility.systemCopyBuffer = Str(snap, "code")));
+            Text("HideNSeek active: positions, speeds, and name tags are hidden.");
+        }
+        else
+            Buttons(("Copy join code", () => GUIUtility.systemCopyBuffer = Str(snap, "code")),
+                ("Name tags: " + OrbBehaviour.NametagsOn, () => Send("nametags", val: OrbBehaviour.NametagsOn ? 0 : 1)));
         if (NetworkServer.active)
         {
             bool locked = Flag(snap, "locked");
@@ -332,7 +339,7 @@ public class OrbMenu : MonoBehaviour
                 }
                 index++;
             }
-            Text("ID: " + Str(player, "id") + "   Position: " + Get(player, "pos") + "   Speed: " + Str(player, "speed") + " m/s");
+            Text(hideNSeek ? "ID: " + Str(player, "id") : "ID: " + Str(player, "id") + "   Position: " + Get(player, "pos") + "   Speed: " + Str(player, "speed") + " m/s");
             Text("Username: " + Str(player, "username") + "   Moderation name: " + Str(player, "modName"));
             if (!Flag(player, "local") && !Flag(player, "isHost"))
             {

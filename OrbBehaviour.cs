@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Reflection;
 using System.Text;
 using Mirror;
 using Mirror.Authenticators;
@@ -18,6 +19,26 @@ public class OrbBehaviour : MonoBehaviour
         "#60361d","#7a021b","#ede3d9","#00a996","#b29672","#ffa300","#ecfaff","#9f500e" };
 
     internal static volatile bool NametagsOn;
+    private static PropertyInfo _hideNSeekActive;
+    private static float _nextHideNSeekLookup;
+
+    internal static bool HideNSeekActive()
+    {
+        if (_hideNSeekActive == null && Time.unscaledTime >= _nextHideNSeekLookup)
+        {
+            _nextHideNSeekLookup = Time.unscaledTime + 1f;
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var type = assembly.GetType("MadysHideNSeek.HideAndSeekTester", false);
+                var property = type?.GetProperty("SuppressMinimapPlayerBlips", BindingFlags.Public | BindingFlags.Static);
+                if (property?.PropertyType != typeof(bool)) continue;
+                _hideNSeekActive = property;
+                break;
+            }
+        }
+        try { return _hideNSeekActive != null && (bool)_hideNSeekActive.GetValue(null); }
+        catch { return false; }
+    }
 
     private class Track
     {
@@ -199,10 +220,12 @@ public class OrbBehaviour : MonoBehaviour
 
     private void Snapshot(bool hosting)
     {
+        bool hideNSeek = HideNSeekActive();
         var sb = new StringBuilder(4096);
         sb.Append("{\"hosting\":").Append(hosting ? "true" : "false")
           .Append(",\"session\":").Append(OrbState.J(OrbState.SessionName))
           .Append(",\"nametags\":").Append(NametagsOn ? "true" : "false")
+          .Append(",\"hideNSeek\":").Append(hideNSeek ? "true" : "false")
           .Append(",\"locked\":").Append(OrbState.LobbyLocked ? "true" : "false")
           .Append(",\"lockAllowed\":").Append(OrbState.LobbyLockCount)
           .Append(",\"code\":").Append(OrbState.J(hosting ? LobbyCode() : ""))
@@ -228,8 +251,8 @@ public class OrbBehaviour : MonoBehaviour
               .Append(",\"isHost\":").Append(pn.isHost ? "true" : "false")
               .Append(",\"muted\":").Append(pn.isMuted ? "true" : "false")
               .Append(",\"colors\":[\"").Append(Hex(pn.lookIdHead)).Append("\",\"").Append(Hex(pn.lookIdTorso)).Append("\",\"").Append(Hex(pn.lookIdLegs)).Append("\"]")
-              .Append(",\"pos\":[").Append((int)pos.x).Append(',').Append((int)pos.y).Append(',').Append((int)pos.z).Append(']')
-              .Append(",\"speed\":").Append((t?.Speed ?? 0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))
+              .Append(",\"pos\":").Append(hideNSeek ? "null" : $"[{(int)pos.x},{(int)pos.y},{(int)pos.z}]")
+              .Append(",\"speed\":").Append(hideNSeek ? "null" : (t?.Speed ?? 0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))
               .Append(",\"air\":").Append((t?.AirSec ?? 0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture))
               .Append(",\"banned\":").Append(OrbState.IsBanned(id) ? "true" : "false")
               .Append(",\"addr\":").Append(OrbState.J(SafeStr(() => pn.isLocalPlayer ? "" : pn.connectionToClient?.address)))
@@ -371,7 +394,7 @@ public class OrbBehaviour : MonoBehaviour
             }
 
             case "nametags":
-                NametagsOn = val != 0;
+                NametagsOn = !HideNSeekActive() && val != 0;
                 break;
 
             default:
@@ -395,6 +418,7 @@ public class OrbBehaviour : MonoBehaviour
 
     private void UpdateNametags()
     {
+        if (HideNSeekActive()) NametagsOn = false;
         if (!NametagsOn)
         {
             if (_tags.Count > 0)
