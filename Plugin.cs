@@ -6,7 +6,6 @@ using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
 using HarmonyLib;
 using Il2CppInterop.Runtime.Injection;
-using ModSettingsMenu.Api;
 using UnityEngine;
 
 namespace BigOrb;
@@ -17,7 +16,7 @@ public class Plugin : BasePlugin
 {
     public const string Guid = "AdamMady.ModerationImprovements";
     public const string Name = "Moderation Improvements";
-    public const string Version = "1.0.0";
+    public const string Version = "1.0.2";
 
     internal static ManualLogSource Logger;
     internal static ConfigEntry<float> FlyMaxSpeed;
@@ -60,21 +59,28 @@ public class Plugin : BasePlugin
         ClassInjector.RegisterTypeInIl2Cpp<OrbMenu>();
         go.AddComponent<OrbMenu>();
 
-        try
-        {
-            ModSettingsRegistry.Register(Guid, new ModSettingsModOptions
-            {
-                Name = Name,
-                Author = "AdamMady",
-                Version = Version
-            });
-        }
-        catch (Exception ex) { Logger.LogWarning("Mod Settings registration failed: " + ex.Message); }
+        TryRegisterSettings();
 
         var harmony = new Harmony(Guid);
         Patches.PatchAllSafe(harmony);
         Guard.Voice.Patch(harmony);
         Guard.Eos.Load();
         Logger.LogInfo(Name + " loaded. Press " + MenuKey.Value + " for the in-game menu.");
+    }
+
+    private static void TryRegisterSettings()
+    {
+        try
+        {
+            var optionsType = Type.GetType("ModSettingsMenu.Api.ModSettingsModOptions, ModSettingsMenu", false);
+            var registryType = Type.GetType("ModSettingsMenu.Api.ModSettingsRegistry, ModSettingsMenu", false);
+            if (optionsType == null || registryType == null) return;
+            var options = Activator.CreateInstance(optionsType);
+            optionsType.GetProperty("Name")?.SetValue(options, Name);
+            optionsType.GetProperty("Author")?.SetValue(options, "AdamMady");
+            optionsType.GetProperty("Version")?.SetValue(options, Version);
+            registryType.GetMethod("Register", new[] { typeof(string), optionsType })?.Invoke(null, new[] { (object)Guid, options });
+        }
+        catch (Exception ex) { Logger.LogWarning("Mod Settings registration failed: " + ex.GetBaseException().Message); }
     }
 }

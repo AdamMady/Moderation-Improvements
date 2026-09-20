@@ -48,7 +48,6 @@
     <Reference Include="UnityEngine.PhysicsModule"><HintPath>$(InteropDir)\UnityEngine.PhysicsModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.TextRenderingModule"><HintPath>$(InteropDir)\UnityEngine.TextRenderingModule.dll</HintPath><Private>false</Private></Reference>
     <Reference Include="UnityEngine.AudioModule"><HintPath>$(InteropDir)\UnityEngine.AudioModule.dll</HintPath><Private>false</Private></Reference>
-    <Reference Include="ModSettingsMenu"><HintPath>$(BigWalkBepInEx)\plugins\ModSettingsMenu.dll</HintPath><Private>false</Private></Reference>
   </ItemGroup>
 
   <ItemGroup>
