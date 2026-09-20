@@ -44,12 +44,12 @@ public class OrbMenu : MonoBehaviour
         var lPressed = Input.GetKeyDown(Plugin.MenuKey.Value);
         if (!_open)
         {
-            if (lPressed) SetOpen(true);
+            if (lPressed && !GameTextInputActive()) SetOpen(true);
             return;
         }
 
         if (Time.unscaledTime - _openedAt > .15f &&
-            (lPressed || Input.GetKeyDown(KeyCode.Escape)))
+            ((lPressed && _focus == null && !GameTextInputActive()) || Input.GetKeyDown(KeyCode.Escape)))
         {
             SetOpen(false);
             return;
@@ -60,6 +60,13 @@ public class OrbMenu : MonoBehaviour
         if (Time.unscaledTime < _nextRefresh) return;
         _nextRefresh = Time.unscaledTime + .5f;
         RefreshState();
+    }
+
+    private static bool GameTextInputActive()
+    {
+        if (ControlsManager.textInputModeActive) return true;
+        try { if (SignTextInput.IsSignInputActive()) return true; } catch { }
+        try { return TextChatInput.instance?.inputIsOpen == true; } catch { return false; }
     }
 
     private void RefreshState()
