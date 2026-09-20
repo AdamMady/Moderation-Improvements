@@ -41,6 +41,11 @@ public class OrbMenu : MonoBehaviour
 
     private void Update()
     {
+        if (!NetworkClient.active || !NetworkClient.isConnected)
+        {
+            if (_open) SetOpen(false);
+            return;
+        }
         var lPressed = Input.GetKeyDown(Plugin.MenuKey.Value);
         if (!_open)
         {
