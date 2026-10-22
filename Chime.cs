@@ -14,7 +14,7 @@ internal static class Chime
 
     internal static bool Enabled => !_broken && Plugin.ChimeEnabled.Value;
 
-    // in-game setting, persisted via the config entry
+    // dashboard toggle, persisted via the config entry
     internal static void SetEnabled(bool on)
     {
         Plugin.ChimeEnabled.Value = on;

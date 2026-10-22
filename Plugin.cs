@@ -15,8 +15,17 @@ namespace BigOrb;
 public class Plugin : BasePlugin
 {
     public const string Guid = "AdamMady.ModerationImprovements";
+#if WORLD_TOOLS
+    public const string Name = "Moderation Improvements - Puzzle Fixer";
+#else
     public const string Name = "Moderation Improvements";
-    public const string Version = "1.0.3";
+#endif
+    public const string Version = "1.1.0";
+#if WORLD_TOOLS
+    internal static readonly bool WorldTools = true;
+#else
+    internal static readonly bool WorldTools = false;
+#endif
 
     internal static ManualLogSource Logger;
     internal static ConfigEntry<float> FlyMaxSpeed;
@@ -65,6 +74,7 @@ public class Plugin : BasePlugin
         Patches.PatchAllSafe(harmony);
         Guard.Voice.Patch(harmony);
         Guard.Eos.Load();
+        if (WorldTools) Scripting.Load(harmony);
         Logger.LogInfo(Name + " loaded. Press " + MenuKey.Value + " for the in-game menu.");
     }
 
@@ -84,3 +94,4 @@ public class Plugin : BasePlugin
         catch (Exception ex) { Logger.LogWarning("Mod Settings registration failed: " + ex.GetBaseException().Message); }
     }
 }
+

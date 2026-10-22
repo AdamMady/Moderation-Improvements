@@ -20,6 +20,7 @@ internal static class OrbState
     private static readonly List<string> Alerts = new();
     private static readonly List<string> Events = new();
     internal static readonly Dictionary<string, BanRecord> Bans = new(); // key: identifier
+
     private static readonly HashSet<string> LobbyLockIds = new(StringComparer.Ordinal);
     private static readonly HashSet<string> LobbyLockAddresses = new(StringComparer.Ordinal);
     internal static bool LobbyLocked { get; private set; }
@@ -27,6 +28,7 @@ internal static class OrbState
     internal volatile static string SnapshotJson = "{\"hosting\":false,\"players\":[]}";
     private static long LastPollTicks;
     internal static void Polled() => System.Threading.Interlocked.Exchange(ref LastPollTicks, Environment.TickCount64);
+    internal static bool DashboardLive => Environment.TickCount64 - System.Threading.Interlocked.Read(ref LastPollTicks) < 5000;
 
     // log files are per hosting session
     internal volatile static string SessionName = "no session";
@@ -37,11 +39,7 @@ internal static class OrbState
         SessionName = string.IsNullOrEmpty(worldName) ? "unnamed" : worldName;
         var safe = new string(SessionName.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray());
         _sessionTag = $"{safe}-{DateTime.Now:yyyyMMdd-HHmmss}";
-        lock (Lock)
-        {
-            Chat.Clear(); Signs.Clear(); Alerts.Clear(); Events.Clear(); Roster.Clear(); SignLocks.Clear();
-            LobbyLocked = false; LobbyLockIds.Clear(); LobbyLockAddresses.Clear();
-        }
+        lock (Lock) { Chat.Clear(); Signs.Clear(); Alerts.Clear(); Events.Clear(); Roster.Clear(); SignLocks.Clear(); LobbyLocked = false; LobbyLockIds.Clear(); LobbyLockAddresses.Clear(); }
         AddEvent("session", null, "host", $"hosting started: {SessionName}");
     }
 

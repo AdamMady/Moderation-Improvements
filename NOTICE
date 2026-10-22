@@ -1,11 +1,17 @@
-Moderation code is taken from Big Orb by RadioFreeOpportunity.
-AdamMady created the in-game menu.
+Big Orb is licensed under CC BY-NC-SA 4.0 (see LICENSE).
+
+Attribution: keep this notice in any copy or derivative work and link to
+the repository you obtained the software from.
+
+NonCommercial: you may not sell this software, sell access to it, or
+include it in any paid bundle, pack, subscription or service.
+
+ShareAlike: anything you build from it must be released under these same
+terms.
 
 Original source: https://github.com/RadioFreeOpportunity/bigorb
-
-Big Orb and this modified version are licensed under CC BY-NC-SA 4.0.
-See LICENSE for full terms.
-
-Attribution: retain this notice and original project link in redistributed copies.
-NonCommercial: do not sell this software, access to it, or include it in paid bundles.
-ShareAlike: adaptations must use same CC BY-NC-SA 4.0 license.
+Upstream version: 1.2.0, commit 7b33007.
+Moderation Improvements source: https://github.com/AdamMady/Moderation-Improvements/
+AdamMady created the in-game menu and integration. This update adapts the latest
+Big Orb backend while preserving custom moderation behavior and adds a separate
+in-game world-tools menu variant. No original authorship of Big Orb is claimed.

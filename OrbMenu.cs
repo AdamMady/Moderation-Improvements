@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace BigOrb;
 
-public class OrbMenu : MonoBehaviour
+public partial class OrbMenu : MonoBehaviour
 {
     private const string DiscordUrl = "https://discord.gg/5z3WvVhxCf";
     private const string SourceUrl = "https://github.com/RadioFreeOpportunity/bigorb";
@@ -17,7 +17,9 @@ public class OrbMenu : MonoBehaviour
 
     public OrbMenu(IntPtr ptr) : base(ptr) { }
 
-    private readonly string[] _tabs = { "Players", "Bans & Roster", "Signs", "Logs", "Settings" };
+    private readonly string[] _tabs = Plugin.WorldTools
+        ? new[] { "Players", "Bans & Roster", "Signs", "Logs", "Settings", "Puzzles", "Hubs / Finale", "Items / Progress", "Solves", "Advanced" }
+        : new[] { "Players", "Bans & Roster", "Signs", "Logs", "Settings" };
     private bool _open, _oldCursorVisible, _oldMenuMode, _showPassword;
     private CursorLockMode _oldCursorLock;
     private int _tab;
@@ -87,7 +89,7 @@ public class OrbMenu : MonoBehaviour
                 ",\"chat\":" + OrbState.Tail("chat") +
                 ",\"alerts\":" + OrbState.Tail("alerts") +
                 ",\"events\":" + OrbState.Tail("events") +
-                ",\"identities\":" + Guard.Eos.Json() + "}";
+                ",\"identities\":" + Guard.Eos.Json() + ",\"world\":" + (Plugin.WorldTools ? Scripting.Json : "null") + "}";
             var replacement = JsonDocument.Parse(json);
             _state?.Dispose();
             _state = replacement;
@@ -170,17 +172,20 @@ public class OrbMenu : MonoBehaviour
         if (GUI.Button(new Rect(Screen.width - 306, 18, 142, 32), "Join The Discord!")) Application.OpenURL(DiscordUrl);
         if (GUI.Button(new Rect(Screen.width - 156, 18, 132, 32), "Close [" + Plugin.MenuKey.Value + "]")) { SetOpen(false); return; }
 
-        var tabWidth = (Screen.width - 48f) / _tabs.Length;
+        int columns = Math.Min(5, _tabs.Length);
+        int tabRows = (_tabs.Length + columns - 1) / columns;
+        var tabWidth = (Screen.width - 48f) / columns;
         for (int i = 0; i < _tabs.Length; i++)
         {
             GUI.backgroundColor = i == _tab ? new Color(.35f, .7f, 1f) : Color.white;
-            if (GUI.Button(new Rect(24 + i * tabWidth, 64, tabWidth - 4, 38), _tabs[i]))
+            if (GUI.Button(new Rect(24 + (i % columns) * tabWidth, 64 + (i / columns) * 42, tabWidth - 4, 38), _tabs[i]))
             { _tab = i; _scroll = 0; _focus = null; }
         }
         GUI.backgroundColor = Color.white;
         GUI.Label(new Rect(24, Screen.height - 35, Screen.width - 48, 30), _status, _label);
 
-        var viewport = new Rect(24, 114, Screen.width - 48, Math.Max(50, Screen.height - 160));
+        float contentTop = 72 + tabRows * 42;
+        var viewport = new Rect(24, contentTop, Screen.width - 48, Math.Max(50, Screen.height - contentTop - 46));
         _viewHeight = viewport.height;
         _width = viewport.width - 22;
         if (_pending == null && ev.type == EventType.ScrollWheel)
@@ -209,6 +214,11 @@ public class OrbMenu : MonoBehaviour
                 case 2: Signs(); break;
                 case 3: Logs(); break;
                 case 4: Settings(); break;
+                case 5: Puzzles(); break;
+                case 6: HubsAndFinale(); break;
+                case 7: ItemsAndProgress(); break;
+                case 8: SolveFeed(); break;
+                case 9: AdvancedWorldTools(); break;
             }
             _contentHeight = _y;
         }
@@ -382,7 +392,7 @@ public class OrbMenu : MonoBehaviour
             var id = Str(player, "id");
             var banned = Flag(player, "banned");
             var local = OrbBehaviour.Local()?.playerNetworking;
-            var isHost = local != null && id == local.identifier;
+            var isHost = local != null && (id == Patches.Pid(local) || id == local.identifier);
             if (!isHost)
                 Buttons((banned ? "Unban" : "Ban", () => Send(banned ? "unban" : "ban", id, confirm: !banned)));
         }

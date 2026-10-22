@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using HarmonyLib;
 using Mirror;
 
@@ -13,7 +12,7 @@ internal static class Patches
 
     private static readonly HashSet<string> FiredHooks = new();
     private static string _lastChatKey; private static DateTime _lastChatTime;
-    private static readonly Dictionary<string, DateTime> RecentSigns = new();
+    private static string _lastSignKey; private static DateTime _lastSignTime;
 
     internal static void MarkFired(string hook)
     {
@@ -64,7 +63,7 @@ internal static class Patches
             for (int i = 0; i < all.Count; i++)
             {
                 var pc = all[i];
-                if (pc != null && pc.playerNetworking != null && pc.playerNetworking.identifier == id)
+                if (pc != null && pc.playerNetworking != null && Pid(pc.playerNetworking) == id)
                     return Display(pc.playerNetworking);
             }
         }
@@ -89,7 +88,7 @@ internal static class Patches
     {
         private static void Postfix(PlayerNetworking __instance, string __0)
         {
-            try { LogChat("chat/cmd", __instance.identifier, Display(__instance), __0); } catch { }
+            try { LogChat("chat/cmd", Pid(__instance), Display(__instance), __0); } catch { }
         }
     }
 
@@ -98,7 +97,7 @@ internal static class Patches
     {
         private static void Postfix(PlayerNetworking __instance, string __0)
         {
-            try { LogChat("chat/rpc", __instance.identifier, Display(__instance), __0); } catch { }
+            try { LogChat("chat/rpc", Pid(__instance), Display(__instance), __0); } catch { }
         }
     }
 
@@ -110,7 +109,7 @@ internal static class Patches
             try
             {
                 var pn = __instance.playerCharacter?.playerNetworking;
-                LogChat("chat/receive", pn?.identifier, pn != null ? Display(pn) : "?", __0);
+                LogChat("chat/receive", Pid(pn), pn != null ? Display(pn) : "?", __0);
             }
             catch { }
         }
@@ -124,7 +123,7 @@ internal static class Patches
             try
             {
                 var pn = __instance.playerCharacter?.playerNetworking;
-                LogChat("chat/display", pn?.identifier, pn != null ? Display(pn) : "?", __0);
+                LogChat("chat/display", Pid(pn), pn != null ? Display(pn) : "?", __0);
             }
             catch { }
         }
@@ -135,24 +134,21 @@ internal static class Patches
     private static void LogSign(string hook, string key, string text, string byId, uint netId = 0)
     {
         MarkFired(hook);
-        var now = DateTime.Now;
-        var dk = (key ?? "") + "\0" + (text ?? "");
-        if (RecentSigns.TryGetValue(dk, out var seen) && (now - seen).TotalSeconds < 3) return;
-        RecentSigns[dk] = now;
-        if (RecentSigns.Count > 128)
-            foreach (var old in RecentSigns.Where(pair => (now - pair.Value).TotalSeconds >= 3).Select(pair => pair.Key).ToList())
-                RecentSigns.Remove(old);
+        var dk = key + "" + text;
+        if (dk == _lastSignKey && (DateTime.Now - _lastSignTime).TotalSeconds < 3) return;
+        _lastSignKey = dk; _lastSignTime = DateTime.Now;
         var byName = NameForIdentifier(byId) ?? (byId != null ? byId : "unknown");
         OrbState.AddSign(key, text, byId, byName, netId);
     }
 
-    // fires for whoever edits a sign (incl. us), has the author id
+    // fires for whoever edits a sign (incl. us). since 1.6.0 the second arg is the sender
+    // connection (null on the client), not an author string
     [HarmonyPatch(typeof(PeckEffectTextInput), nameof(PeckEffectTextInput.CmdSendNewText))]
     internal static class SignCmdPatch
     {
-        private static void Postfix(PeckEffectTextInput __instance, string __0, string __1)
+        private static void Postfix(PeckEffectTextInput __instance, string __0, NetworkConnectionToClient __1)
         {
-            try { LogSign("sign/cmd", SignKey(__instance), __0, __1, SignNetId(__instance)); } catch { }
+            try { LogSign("sign/cmd", SignKey(__instance), __0, AuthorOf(__1), SignNetId(__instance)); } catch { }
         }
     }
 
@@ -171,7 +167,7 @@ internal static class Patches
                 OrbState.MainQueue.Enqueue(() =>
                 {
                     string author = null, key = "sign";
-                    try { author = inst.authorIdentifier; key = SignKey(inst); } catch { }
+                    try { author = PidOf(inst.authorIdentifier); key = SignKey(inst); } catch { }
                     LogSign("sign/sync", key, text, author, SignNetId(inst));
                 });
             }
@@ -179,22 +175,47 @@ internal static class Patches
         }
     }
 
-    private static bool IsLocalIdentifier(string id)
+    // host commands arrive on the local connection
+    internal static bool IsHostConnection(NetworkConnectionToClient conn)
     {
-        try
-        {
-            if (string.IsNullOrEmpty(id)) return false;
-            var all = PlayerCharacter.allPlayerCharacters;
-            if (all == null) return false;
-            for (int i = 0; i < all.Count; i++)
-            {
-                var pc = all[i];
-                if (pc != null && pc.playerNetworking != null && pc.playerNetworking.isLocalPlayer)
-                    return pc.playerNetworking.identifier == id;
-            }
-        }
-        catch { }
-        return false;
+        try { return conn == null || conn.TryCast<LocalConnectionToClient>() != null || conn.connectionId == 0; }
+        catch { return false; }
+    }
+
+    // stable player id: the platform id (steam / console). 1.6.0 moved it from identifier
+    // (now the EOS id) to userPlatformId; bans and logs stay keyed on it. falls back to identifier.
+    internal static string Pid(PlayerNetworking pn)
+    {
+        if (pn == null) return null;
+        string s = null;
+        try { s = pn.userPlatformIdString; } catch { }
+        if (string.IsNullOrEmpty(s) || s == "0") { s = null; try { var u = pn.userPlatformId; if (u != 0) s = u.ToString(); } catch { } }
+        if (string.IsNullOrEmpty(s)) { try { s = pn.identifier; } catch { } }
+        return s;
+    }
+
+    // raw EOS id (a sign's authorIdentifier) -> platform id, when that player is here
+    internal static string PidOf(string rawId)
+    {
+        if (string.IsNullOrEmpty(rawId)) return rawId;
+        try { var pc = OrbBehaviour.ById(rawId); if (pc != null) return Pid(pc.playerNetworking) ?? rawId; } catch { }
+        return rawId;
+    }
+
+    private static PlayerNetworking PlayerOf(NetworkConnectionToClient conn)
+    {
+        try { var id = conn?.identity; return id != null ? id.GetComponent<PlayerNetworking>() : null; }
+        catch { return null; }
+    }
+
+    // platform id of whoever sent a command; null before their player spawns
+    internal static string AuthorOf(NetworkConnectionToClient conn) => Pid(PlayerOf(conn));
+
+    // raw EOS id of the sender: the game records it as sign author, and its kick cleanup matches on it
+    internal static string RawAuthorOf(NetworkConnectionToClient conn)
+    {
+        var pn = PlayerOf(conn);
+        try { return pn != null ? pn.identifier : null; } catch { return null; }
     }
 
     private static string SignKey(PeckEffectTextInput input)
@@ -221,10 +242,10 @@ internal static class Patches
     // the static InvokeUserCode_* handlers are registered as delegates so they can't be
     // inlined. for a locked sign, eat the incoming edit and replay with the locked text.
 
-    [HarmonyPatch(typeof(PeckEffectTextInput), nameof(PeckEffectTextInput.InvokeUserCode_CmdSendNewText__String__String))]
+    [HarmonyPatch(typeof(PeckEffectTextInput), nameof(PeckEffectTextInput.InvokeUserCode_CmdSendNewText__String__NetworkConnectionToClient))]
     internal static class SignLockPatch
     {
-        private static bool Prefix(NetworkBehaviour __0, NetworkReader __1)
+        private static bool Prefix(NetworkBehaviour __0, NetworkReader __1, NetworkConnectionToClient __2)
         {
             PeckEffectTextInput sign;
             uint net;
@@ -243,12 +264,14 @@ internal static class Patches
             try
             {
                 var text = NetworkReaderExtensions.ReadString(__1);
-                var author = NetworkReaderExtensions.ReadString(__1);
-                if (IsLocalIdentifier(author))
+                // only the text is on the wire since 1.6.0; the author comes from the sender connection
+                var author = AuthorOf(__2);
+                var raw = RawAuthorOf(__2) ?? author;
+                if (IsHostConnection(__2))
                 {
                     // host edit moves the lock
                     OrbState.LockSign(net, SignKey(sign), text);
-                    sign.UserCode_CmdSendNewText__String__String(text, author);
+                    sign.ServerSetText(text, raw);
                 }
                 else
                 {
@@ -256,7 +279,7 @@ internal static class Patches
                     var who = NameForIdentifier(author) ?? author ?? "unknown";
                     OrbState.AddEvent("signblocked", author, who,
                         $"tried to edit locked sign {net} ({SignKey(sign)}) with \"{text}\"");
-                    sign.UserCode_CmdSendNewText__String__String(locked, author);
+                    sign.ServerSetText(locked, sign.authorIdentifier);
                 }
             }
             catch (Exception e) { Plugin.Logger.LogError("sign lock: " + e.Message); }
@@ -275,16 +298,15 @@ internal static class Patches
             {
                 MarkFired("identifier");
                 if (!NetworkServer.active || string.IsNullOrEmpty(__1) || __instance.isLocalPlayer || __instance.isHost) return;
-                if (OrbState.IsBanned(__1))
+                string address = null; try { address = __instance.connectionToClient?.address; } catch { }
+                if (!OrbState.LobbyAllows(Pid(__instance), address))
                 {
-                    OrbState.AddEvent("autokick", __1, Display(__instance), "banned identifier tried to join");
                     Guard.Kick(__instance);
                     return;
                 }
-                string address = null; try { address = __instance.connectionToClient?.address; } catch { }
-                if (!OrbState.LobbyAllows(__1, address))
+                if (OrbState.IsBanned(__1) || OrbState.IsBanned(Pid(__instance)))
                 {
-                    OrbState.AddEvent("lockreject", __1, Display(__instance), "lobby locked; player was not present when locked");
+                    OrbState.AddEvent("autokick", Pid(__instance), Display(__instance), "banned identifier tried to join");
                     Guard.Kick(__instance);
                 }
             }
