@@ -12,7 +12,7 @@ namespace BigOrb;
 public partial class OrbMenu : MonoBehaviour
 {
     private const string DiscordUrl = "https://discord.gg/5z3WvVhxCf";
-    private const string SourceUrl = "https://github.com/RadioFreeOpportunity/bigorb";
+    private const string SourceUrl = "https://github.com/ellietheraccoon/bigorb";
     private const string RepoUrl = "https://github.com/AdamMady/Moderation-Improvements/";
 
     public OrbMenu(IntPtr ptr) : base(ptr) { }
@@ -471,7 +471,7 @@ public partial class OrbMenu : MonoBehaviour
         Buttons(("-10 packets/s", () => Plugin.GuardVoiceLimit.Value = Math.Max(0, Plugin.GuardVoiceLimit.Value - 10)),
             ("+10 packets/s", () => Plugin.GuardVoiceLimit.Value += 10));
         Text("Press " + Plugin.MenuKey.Value + " or Escape to close.");
-        Text("Moderation code taken from Big Orb by RadioFreeOpportunity. AdamMady made this in-game menu.");
+        Text("Moderation code taken from Big Orb by Ellie The Racoon, with contributions from RadioFreeOpportunity. AdamMady made this in-game menu.");
         Buttons(("Open Original Big Orb Repository", () => Application.OpenURL(SourceUrl)),
             ("Moderation Improvements Repository", () => Application.OpenURL(RepoUrl)));
     }

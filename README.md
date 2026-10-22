@@ -14,8 +14,8 @@ Discord: https://discord.gg/5z3WvVhxCf
 
 ## Credit and license
 
-Moderation code taken from **Big Orb** by **RadioFreeOpportunity**. **AdamMady** created the in-game menu:
-https://github.com/RadioFreeOpportunity/bigorb
+Moderation code taken from **Big Orb** by **Ellie The Racoon**, with contributions from **RadioFreeOpportunity**. **AdamMady** created the in-game menu:
+https://github.com/ellietheraccoon/bigorb
 
 Moderation Improvements repository:
 https://github.com/AdamMady/Moderation-Improvements/
