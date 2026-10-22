@@ -9,9 +9,7 @@ include it in any paid bundle, pack, subscription or service.
 ShareAlike: anything you build from it must be released under these same
 terms.
 
-Original author: Ellie The Racoon.
-Contributions: RadioFreeOpportunity.
-Original source: https://github.com/ellietheraccoon/bigorb
+Original source: https://github.com/RadioFreeOpportunity/bigorb
 Upstream version: 1.2.0, commit 7b33007.
 Moderation Improvements source: https://github.com/AdamMady/Moderation-Improvements/
 AdamMady created the in-game menu and integration. This update adapts the latest

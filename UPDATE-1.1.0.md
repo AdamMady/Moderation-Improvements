@@ -13,6 +13,6 @@ Both variants use the same plugin GUID and configuration/ban folder. Install one
 
 Built against assemblies extracted from BigWalkLatest. In-game behavior has not yet been tested on that build. Existing 1.0.3 release folders remain unchanged.
 
-Original Big Orb: https://github.com/ellietheraccoon/bigorb
+Original Big Orb: https://github.com/RadioFreeOpportunity/bigorb
 Moderation Improvements: https://github.com/AdamMady/Moderation-Improvements/
 Big Orb and these adaptations remain CC BY-NC-SA 4.0.
